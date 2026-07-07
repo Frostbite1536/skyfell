@@ -1,0 +1,29 @@
+# Build outputs
+build/
+*.sfc
+*.smc
+*.sym
+*.o
+*.obj
+*.ps
+*.dat
+
+# Test artifacts (screenshots, logs)
+artifacts/
+
+# Toolchain — lives outside the repo (PVSNESLIB_HOME); never vendor binaries
+tools/bin/
+pvsneslib*/
+
+# Generated data (converter outputs land in src/data via build, not commits)
+src/data/generated/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
