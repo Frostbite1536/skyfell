@@ -35,8 +35,8 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 - [x] `Makefile`: `make` → `build/skyfell.sfc` (LoROM, FastROM flagged, header name `RIFT SKYFELL ENGINE`), `make test` → TEST build + run Lua suite, `make run` → launch MesenCE with the ROM, `make clean` *(done 2026-07-11, adapted from prophet)*
 - [x] Hello-world ROM: Mode 1, backdrop color cycle + "SKYFELL" text, NMI handler with vblank queue stub *(done 2026-07-11 — `src/main.c`, `src/core/vblank.c`)*
 - [x] Test harness: `tools/run_tests.py` + `tests/lua/lib/harness.lua`; first test `test_boot.lua` asserts debug-RAM magic `0x51FE` at `$7EFF00` (D-010) and takes a screenshot *(done 2026-07-11 — `--testrunner` proven on this machine; baseline 1/1)*
-- [ ] Spike: run `gfx4snes` on one 16-color PNG *(proven — the font pipeline runs it every build)* and `tmx2snes` on a trivial Tiled map — confirm linkable output and whether tmx2snes carries custom tile properties (decides R4 fallback)
-- [ ] CI: GitHub Actions **build-only** job (Linux zip); test job deferred (R5) *(workflow written, adapted from prophet's green job; unproven until the GitHub remote exists)*
+- [x] Spike: `gfx4snes` *(proven — the font pipeline runs it every build)* and `tmx2snes` on a Tiled map *(done 2026-07-11 — deterministic, custom `attribute` u16 carries to `.b16`; R4 fallback NOT needed; see D-011)*
+- [x] CI: GitHub Actions **build-only** job (Linux zip); test job deferred (R5) *(green 2026-07-11 on `fcbf047` — artifact verified: 512KB, correct header)*
 
 ### Explicit Exclusions
 
@@ -45,9 +45,9 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 
 ### Success Criteria
 
-- [ ] `make && make test` green on a clean checkout (documented in README + CLAUDE.md)
-- [ ] `artifacts/test_boot/boot.png` shows the hello screen
-- [ ] CONTINUATION.md records exact tool versions + install paths
+- [x] `make && make test` green on a clean checkout (documented in README + CLAUDE.md) *(1/1, 2026-07-11)*
+- [x] `artifacts/test_boot/boot.png` shows the hello screen *(verified by eye — the green gate alone missed a textless screen once; see CONTINUATION gotchas)*
+- [x] CONTINUATION.md records exact tool versions + install paths
 
 ### Risks & Mitigations
 

@@ -4,19 +4,22 @@ A **Super Nintendo game** — a real `.sfc` ROM, not a "retro-style" PC game. Po
 
 You are Wren, an apprentice riftwright descending through the shattered Skyfell Engine to relight it — and to learn who broke it.
 
-**Status**: 🚧 Planning complete (2026-07-07) — Phase 0 (toolchain bring-up) not started. See [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status**: 🚧 Phase 0 (toolchain bring-up) complete 2026-07-11 — the ROM builds, boots, and gates on an automated emulator test (baseline 1/1). Next: Phase 1, platformer core. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Quick start
-
-> Available after Phase 0 lands. The contract these commands will honor:
 
 ```
 make        # build build/skyfell.sfc  (PVSnesLib 4.5.0, LoROM/FastROM)
 make test   # TEST ROM + automated emulator suite (MesenCE --testrunner + Lua)
 make run    # launch the ROM in MesenCE
+make clean
 ```
 
-Prereqs (installed outside the repo, per [docs/CONTINUATION.md](docs/CONTINUATION.md)): [PVSnesLib 4.5.0](https://github.com/alekmaul/pvsneslib) (`PVSNESLIB_HOME`), [MesenCE](https://github.com/nesdev-org/MesenCE).
+Prereqs (installed outside the repo, per [docs/CONTINUATION.md](docs/CONTINUATION.md)): [PVSnesLib 4.5.0](https://github.com/alekmaul/pvsneslib) (`PVSNESLIB_HOME`, forward-slash path), [MesenCE](https://github.com/nesdev-org/MesenCE), Python 3. On Windows, `make` is MSYS2's — the proven one-liner:
+
+```
+C:\msys64\usr\bin\bash.exe -lc "export PVSNESLIB_HOME=C:/Users/LCM/snesdev/pvsneslib; make -C /c/Users/LCM/Github/skyfell test PYTHON=C:/Python314/python.exe"
+```
 
 ## Project structure
 

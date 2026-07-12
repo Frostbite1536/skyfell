@@ -4,12 +4,13 @@
 
 ## Current state (2026-07-11)
 
-- **Phase**: 0 core COMPLETE — `make` → `build/skyfell.sfc` (LoROM/FastROM, header `RIFT SKYFELL ENGINE`), `make test` green on a clean build. Hello-world ROM: Mode 1, "SKYFELL" text via pvsneslib console, backdrop color cycle through the vblank-queue stub (`src/core/vblank.c` — Phase 1 replaces it with the full engine ported from `../prophet/src/core/vblank.c`).
+- **Phase**: 0 COMPLETE — every ROADMAP Phase 0 box ticked. `make` → `build/skyfell.sfc`; `make test` green on a clean build; hello-world ROM (Mode 1 text + backdrop cycle through the vblank-queue stub — Phase 1 replaces the stub with the full engine ported from `../prophet/src/core/vblank.c`).
 - **Test baseline: 1/1** (`test_boot`) — from the runner's own last line, clean build, 2026-07-11. Boot screenshot verified at `artifacts/test_boot/boot.png`.
-- **Debug block**: `$7EFF00`, magic `0x51FE` (D-010 — the planning-time `$7E1F00` collides with the crt0 stack; layout contract in `tests/README.md`, next append at +26).
-- **Git**: local repo only — **no GitHub remote yet** (Jeremy to decide public/private + name). All Phase 0 work is uncommitted on `main` (docs re-pin + build kit + harness); Jeremy to review/commit.
-- **Reuse source**: sibling `C:\Users\LCM\Github\prophet` (Phase 8, 39/39 green) — audited 2026-07-11; port map + lessons in the session memory (`prophet-reuse-audit`). Makefile/hdr/dbg/harness/run_tests here are its adapted descendants.
-- **Open user decisions**: GitHub remote? · license (D-009) · commit of Phase 0 work.
+- **Debug block**: `$7EFF00`, magic `0x51FE` (D-010; layout contract in `tests/README.md`, next append at +26).
+- **Map pipeline decided (D-011)**: tmx2snes adopted — deterministic, per-tile `attribute` u16 carries to `.b16` (collision+material fits); input is Tiled's `.tmj` JSON export. R4 fallback closed.
+- **Git**: remote `https://github.com/Frostbite1536/skyfell` — Phase 0 committed (`fcbf047`) and pushed; **CI green on that commit**, artifact verified (512KB, `RIFT SKYFELL ENGINE` title, map mode `$30`).
+- **Reuse source**: sibling `C:\Users\LCM\Github\prophet` (Phase 8, 39/39 green) — audited 2026-07-11; port map + lessons in the session memory (`prophet-reuse-audit`).
+- **Open user decisions**: license (D-009).
 
 ## Environment facts (verified by running, 2026-07-11)
 
@@ -20,12 +21,12 @@
 - **pvsneslib gotchas hit in Phase 0**: `nmiSet()` OVERRIDES the default handler — a custom NMI must chain `consoleVblank()` (lib symbol, not in any header) or console text never uploads; `consoleUpdate()` DMAs to a HARDCODED VRAM $0800, ignoring `consoleSetTextMapPtr` — never use it. CGRAM data port is `*CGRAM_PALETTE`, not `REG_CGDATA`.
 - The full battle-tested env/toolchain lore (SRAM at `$70:0000`, tcc816 traps, ROM-table rules, 60fps phase-stagger) lives in `../prophet/docs/CONTINUATION.md` "Environment facts" + "Hardware/toolchain lessons" — read before each new phase.
 
-## Next actions (in order)
+## Next actions (in order) — Phase 1: Platformer Core
 
-1. Remaining Phase 0: **tmx2snes spike** (trivial Tiled map → linkable output; does it carry custom tile properties? decides R4 fallback). gfx4snes is already proven (the font pipeline runs it every build).
-2. CI proof: needs the GitHub remote decision; `.github/workflows/build.yml` is written (adapted from prophet's green job) but unproven.
-3. README + CLAUDE.md: document the one-command build/test for a clean checkout (Phase 0 success criterion).
-4. Phase 0 checkpoint in DECISIONS.md, then Phase 1 (metatile room + player physics — port prophet's full vblank.c + rng.c first; see the reuse audit memory).
+1. Port prophet's full engine core first (see the reuse-audit memory): `src/core/vblank.c` (SoA queue + measured NMI byte budget — RE-MEASURE the budget constants on skyfell's ROM, don't copy prophet's) + `vqdata.asm` staging buffer, `src/core/rng.c/h` (swap the "PROP" seed), `src/core/dbgcmd` mailbox pattern for the warp request at +24.
+2. Metatile room format (16×16 metatiles: 4 tiles + collision byte + material byte) fed by the tmx2snes pipeline (D-011); one ~64×32 test room in `assets/maps/`.
+3. Player FSM + fixed-point physics (s32 16.8 / s16 8.8, tunables in `src/game/tuning.h`), AABB-vs-metatile swept collision.
+4. Tests: `test_walk`, `test_jump` (golden apex frozen from the ROM, never a parallel sim), `test_replay` (INV-ENG-002 — green forever from then on).
 
 ## Session gotchas learned
 

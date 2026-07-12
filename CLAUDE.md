@@ -4,10 +4,11 @@ SNES puzzle-platformer/Metroidvania (real `.sfc` ROM): portal gun with momentum 
 
 **Start every session by reading `docs/CONTINUATION.md`.** Then consult: `docs/ROADMAP.md` (what to build next), `docs/ARCHITECTURE.md` (how), `docs/INVARIANTS.md` (rules), `docs/GDD.md` (design), `docs/DECISIONS.md` (settled questions — don't re-litigate).
 
-## Commands (exist after Phase 0)
+## Commands
 
 - `make` → `build/skyfell.sfc` · `make test` → TEST ROM + full Lua suite via `tools/run_tests.py` · `make run` → launch in MesenCE · `make clean`
-- Toolchain: PVSnesLib 4.5.0 at `PVSNESLIB_HOME` (outside repo). Never bump tool versions silently — that's a DECISIONS.md entry.
+- **On this machine, invoke make through MSYS2** (Git Bash can't pass env vars to MSYS2 binaries; python isn't on the MSYS2 path): `C:\msys64\usr\bin\bash.exe -lc "export PVSNESLIB_HOME=C:/Users/LCM/snesdev/pvsneslib; make -C /c/Users/LCM/Github/skyfell test PYTHON=C:/Python314/python.exe"` — details + env gotchas in `docs/CONTINUATION.md`.
+- Toolchain: PVSnesLib 4.5.0 at `PVSNESLIB_HOME` (outside repo, forward-slash path). Never bump tool versions silently — that's a DECISIONS.md entry (in both sibling repos, per prophet's CLAUDE.md).
 
 ## Structure
 
