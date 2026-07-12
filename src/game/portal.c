@@ -267,16 +267,39 @@ static void refresh(u8 c)
     if (portal_world)
     {
         /* the chamber: Mode 7 map bytes, tile 13 blue / 14 gold when on,
-         * the raw world byte when cleared; VRAM word addr == tile index */
+         * the raw world byte when cleared; VRAM word addr == tile index.
+         * Plain ifs throughout — ternaries here produced a +1-stride
+         * placement (tcc816 codegen caution). */
         u8 k;
         u16 idx = (u16)((p_ty[c] << 7) + p_tx[c]);
         u8 hz = horiz(p_or[c]);
-        for (k = 0; k < STRIP; k++)
+        if (hz)
         {
-            m7buf[k] = p_on[c] ? (u8)(13 + c)
-                              : cham_map[(u16)(idx + (hz ? k : (u16)(k << 7)))];
+            /* horizontal strip: contiguous, one 6-byte push */
+            for (k = 0; k < STRIP; k++)
+            {
+                if (p_on[c])
+                    m7buf[k] = (u8)(13 + c);
+                else
+                    m7buf[k] = cham_map[(u16)(idx + k)];
+            }
+            vq_push_m7map(idx, m7buf, STRIP);
         }
-        vq_push_m7map(idx, m7buf, STRIP, (u8)(hz ? 0 : 1));
+        else
+        {
+            /* vertical strip: six 1-byte pushes. The +128-stride DMA
+             * (VMAIN $02) landed +1 in MesenCE regardless of source shape
+             * (measured; unresolved emu-vs-codegen) — per-cell pushes are
+             * event-time cheap and unambiguous. */
+            for (k = 0; k < STRIP; k++)
+            {
+                if (p_on[c])
+                    m7buf[k] = (u8)(13 + c);
+                else
+                    m7buf[k] = cham_map[(u16)(idx + ((u16)k << 7))];
+                vq_push_m7map((u16)(idx + ((u16)k << 7)), &m7buf[k], 1);
+            }
+        }
         return;
     }
     if (horiz(p_or[c]))

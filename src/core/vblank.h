@@ -27,8 +27,8 @@ u8 vq_push_vram_seq(u16 vaddr, const u16 *src, u16 words); /* +1 word stride */
 u8 vq_push_vram_col(u16 vaddr, const u16 *src, u8 words);  /* +32 word stride:
                                        one tilemap column inside a screen    */
 u8 vq_push_cgram(u8 color, const u16 *src, u8 count);      /* CGRAM colors   */
-u8 vq_push_m7map(u16 tile_addr, const u8 *src, u8 bytes, u8 col); /* Mode 7
-                                       map bytes; col=1 strides +128 tiles  */
+u8 vq_push_m7map(u16 tile_addr, const u8 *src, u8 bytes); /* Mode 7 map
+                                       bytes, +1 tile per byte             */
 
 /* Zero-copy staging (the seam streamers' path — profiling showed the C
  * build-then-copy cost ~90 scanlines per column): reserve `words` of
