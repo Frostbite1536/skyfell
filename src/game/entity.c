@@ -1,5 +1,6 @@
 #include "src/game/entity.h"
 
+#include "src/game/chamber.h"
 #include "src/game/player.h"
 #include "src/game/portal.h"
 #include "src/game/room.h"
@@ -26,6 +27,8 @@ static u8 e_cool[ENT_MAX]; /* per-object teleport cooldown */
 static u8 e_slp[ENT_MAX]; /* crate at rest: full physics skipped (the frame
                              was measured within ~2k cycles of the lag cliff
                              on seam frames — resting crates must be free) */
+static u16 e_ax[ENT_MAX]; /* spawn anchor, box CENTER px (the drone's leash) */
+static u16 e_ay[ENT_MAX];
 static u8 carried; /* crate slot in hand, 0xFF none */
 
 /* compact crate list — the player clamps run per frame and must not scan
@@ -50,6 +53,8 @@ static u8 ent_w(u8 t)
     if (t == ET_CRATE)
         return CRATE_W;
     if (t == ET_SENTRY)
+        return 16;
+    if (t == ET_DRONE)
         return 16;
     return SHOT_BOX;
 }
@@ -116,6 +121,8 @@ u8 ent_spawn(u8 type, u16 x, u16 y)
             e_tmr[i] = 0;
             e_cool[i] = 0;
             e_slp[i] = 0;
+            e_ax[i] = (u16)(x + (ent_w(type) >> 1));
+            e_ay[i] = (u16)(y + (ent_w(type) >> 1));
             rebuild_crate_list();
             return i;
         }
@@ -352,7 +359,6 @@ static u8 shot_frame(u8 i)
 {
     s16 ox, oy, x, y;
     s16 otx, oty, tx, ty;
-    u16 a;
     u8 j;
     u8 t = e_type[i];
 
@@ -403,9 +409,10 @@ static u8 shot_frame(u8 i)
     }
 
     /* solid contact (overlay-aware: portal cells read empty, so shots fly
-     * into an open portal's zone and the plane check above catches them) */
-    a = room_attr((u16)tx, (u16)ty);
-    if (ATTR_COL(a) != COL_EMPTY)
+     * into an open portal's zone and the plane check above catches them).
+     * solid_at, not room_attr — it reads the CURRENT world (room words or
+     * chamber bytes) with the same overlay semantics. */
+    if (solid_at(tx, ty))
     {
         if (t == ET_SHOT_B || t == ET_SHOT_G)
         {
@@ -424,6 +431,42 @@ static u8 shot_frame(u8 i)
         return 1;
     }
     return 0;
+}
+
+/* the Gale Drone: a leashed floater (GDD/D-014). Gravity-free, portal-free,
+ * solid-free by DESIGN: it bounces its center inside spawn +- DRONE_R, so an
+ * authored spawn with a clear patrol box can never wander onto a brass strip
+ * (fizzling portals) and a recalled portal can never entomb it. Contact
+ * damage arrives with death/respawn (Phase 3.5). Nested ifs, not compound
+ * guards (the tcc816 miscompile trap). */
+static void drone_frame(u8 i)
+{
+    s16 c;
+    e_tmr[i]++; /* spin-frame clock (ent_render alternates names 96/98) */
+    e_x[i] += e_vx[i];
+    e_y[i] += e_vy[i];
+    c = (s16)((s16)(e_x[i] >> 8) + 8);
+    if (e_vx[i] < 0)
+    {
+        if (c < (s16)(e_ax[i] - DRONE_R))
+            e_vx[i] = (s16)(-e_vx[i]);
+    }
+    else
+    {
+        if (c > (s16)(e_ax[i] + DRONE_R))
+            e_vx[i] = (s16)(-e_vx[i]);
+    }
+    c = (s16)((s16)(e_y[i] >> 8) + 8);
+    if (e_vy[i] < 0)
+    {
+        if (c < (s16)(e_ay[i] - DRONE_R))
+            e_vy[i] = (s16)(-e_vy[i]);
+    }
+    else
+    {
+        if (c > (s16)(e_ay[i] + DRONE_R))
+            e_vy[i] = (s16)(-e_vy[i]);
+    }
 }
 
 static void sentry_frame(u8 i)
@@ -475,6 +518,8 @@ void ent_update(void)
             crate_frame(i);
         else if (t == ET_SENTRY)
             sentry_frame(i);
+        else if (t == ET_DRONE)
+            drone_frame(i);
         else if (shot_frame(i))
             changed = 1; /* a shot despawned this frame */
     }
@@ -618,12 +663,17 @@ void ent_grab_toggle(void)
 /* OAM sprites 2..17, one 16x16 per slot (shots draw their 6x6 orb centered
  * in the transparent 16x16 frame). Direct shadow stores (prophet's perf
  * lesson). Base tile names: crate 64, sentry 66/68, shotB 70, shotG 72,
- * sshot 74 (mkobj.py entity band). */
+ * sshot 74 (mkobj.py entity band), drone 96/98 (spin frames).
+ * In the CHAMBER (portal_world): sprites can't rotate (INV-HW-004) — hide
+ * everything during the tween; at rest the screen is the world rotated by
+ * a cardinal, so world->screen is a 90-degree swap of the offset from
+ * Wren's box center (the M7 pivot, pinned at screen 128,112 — D-005). */
 void ent_render(void)
 {
     u8 k, i;
     u16 o;
     s16 sx, sy;
+    s16 rx, ry;
     u8 t;
     u8 name;
     for (k = 0; k < live_cnt; k++)
@@ -634,20 +684,57 @@ void ent_render(void)
         if (t == ET_NONE)
             continue; /* died this frame; hidden at despawn */
         if (t == ET_CRATE)
-        {
             name = 64;
+        else if (t == ET_SENTRY)
+            name = (u8)((e_st[i] & 0x80) ? 68 : 66);
+        else if (t == ET_DRONE)
+            name = (u8)(((e_tmr[i] >> 3) & 1) ? 98 : 96);
+        else
+            name = (u8)((t == ET_SHOT_B) ? 70 : (t == ET_SHOT_G) ? 72 : 74);
+        if (portal_world)
+        {
+            if (cham_rot)
+            {
+                oamMemory[o + 1] = 0xF0; /* hidden through the spin */
+                continue;
+            }
+            rx = (s16)((s16)(e_x[i] >> 8) + (ent_w(t) >> 1) - cham_cx);
+            ry = (s16)((s16)(e_y[i] >> 8) + (ent_w(t) >> 1) - cham_cy);
+            if (cham_thk == 0)
+            {
+                sx = rx;
+                sy = ry;
+            }
+            else if (cham_thk == 1)
+            {
+                sx = (s16)(-ry);
+                sy = rx;
+            }
+            else if (cham_thk == 2)
+            {
+                sx = (s16)(-rx);
+                sy = (s16)(-ry);
+            }
+            else
+            {
+                sx = ry;
+                sy = (s16)(-rx);
+            }
+            sx = (s16)(sx + 128 - 8); /* 16x16 sprite around the center */
+            sy = (s16)(sy + 112 - 8);
+        }
+        else if (t == ET_CRATE)
+        {
             sx = (s16)((s16)(e_x[i] >> 8) - 1 - (s16)room_cam_x());
             sy = (s16)((s16)(e_y[i] >> 8) - 1 - (s16)room_cam_y());
         }
-        else if (t == ET_SENTRY)
+        else if (t == ET_SENTRY || t == ET_DRONE)
         {
-            name = (u8)((e_st[i] & 0x80) ? 68 : 66);
             sx = (s16)((s16)(e_x[i] >> 8) - (s16)room_cam_x());
             sy = (s16)((s16)(e_y[i] >> 8) - (s16)room_cam_y());
         }
         else
         {
-            name = (u8)((t == ET_SHOT_B) ? 70 : (t == ET_SHOT_G) ? 72 : 74);
             sx = (s16)((s16)(e_x[i] >> 8) - 5 - (s16)room_cam_x());
             sy = (s16)((s16)(e_y[i] >> 8) - 5 - (s16)room_cam_y());
         }

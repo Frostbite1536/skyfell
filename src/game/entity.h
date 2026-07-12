@@ -14,6 +14,7 @@
 #define ET_SHOT_B 3 /* blue portal shot */
 #define ET_SHOT_G 4 /* gold portal shot */
 #define ET_SSHOT 5  /* sentry shot */
+#define ET_DRONE 6  /* Gale Drone: leashed chamber floater (D-014) */
 
 void ent_clear_all(void);
 void ent_wake_all(void);             /* portal changes wake sleeping crates */

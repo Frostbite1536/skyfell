@@ -61,6 +61,7 @@ Tests run the **real ROM** in MesenCE headless. The invocation proven in Phase 0
 | 6 | PORTAL_SET | arg0 = color \| orient<<8 (0xFFFF = recall both), arg1 = tx \| ty<<8 — through THE validator |
 | 7 | WATCH | arg0 = pool slot to mirror at +50..+58 |
 | 8 | ENT_CLEAR | despawn everything |
+| 9 | GRAV_SET | arg0 = gravity 0-3 (chamber) — chamber_set_gravity + the rotation tween |
 
 **VRAM test scratch**: word addresses `0x7C00+` are reserved for tests — no
 game system may ever write there (VQ_STRESS lands its patterns there and Lua
@@ -74,6 +75,6 @@ Stop-code convention: 0 pass · 1 generic · 12 Lua error · 13 body-ended-witho
 
 ## Test inventory (grows per phase — see ROADMAP gates)
 
-LIVE (9): `test_boot` · `test_room` (pipeline + 4-direction live seam streaming) · `test_vblank` (drain throughput/defer/overflow) · `test_walk`, `test_jump` (GOLDEN numbers frozen from the ROM 2026-07-12), `test_replay` (INV-ENG-002 — green forever) · `test_fling` (exact momentum conservation + portal render), `test_portal_rules` (the INV-ENG-004 validator), `test_sentry` (the reflect kill) · Phase 3: `test_gravity_cycle`, `test_chamber_puzzle` · Phase 4: `test_save_roundtrip`, `test_gate`
+LIVE (12): `test_boot` · `test_room` (pipeline + 4-direction live seam streaming) · `test_vblank` (drain throughput/defer/overflow) · `test_walk`, `test_jump` (GOLDEN numbers frozen from the ROM 2026-07-12), `test_replay` (INV-ENG-002 — green forever) · `test_fling` (exact momentum conservation + portal render), `test_portal_rules` (the INV-ENG-004 validator), `test_sentry` (the reflect kill) · Phase 3: `test_chamber` (Mode 7 load + 4-gravity cycle), `test_gravity_cycle` (portal-driven, bit-identical ×2), `test_chamber_drone` (leash patrol, tween freeze+hide, reload determinism) · STILL TO COME — Phase 3: `test_chamber_puzzle` · Phase 4: `test_save_roundtrip`, `test_gate`
 
 Golden values live beside their tests; changing one requires a DECISIONS.md entry. Golden-harvest pattern: a temporary `test_zzz*.lua` probe writes measured values to its artifact dir; freeze them into the real test; delete the probe.

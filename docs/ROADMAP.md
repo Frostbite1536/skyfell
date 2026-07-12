@@ -129,7 +129,7 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 - [ ] Rotation math: 256-entry sin/cos LUT (8.8); M7A–D matrix + M7X/M7Y pivot; world data stays fixed, a screen-transform (90° swaps) maps world→screen for all sprites (D-005)
 - [ ] Gravity rule: exiting a chamber portal sets **gravity = −(exit surface outward normal)**; transition = physics frozen, θ eased over ~40 frames, player pinned upright at screen center, then play resumes in the new gravity frame
 - [ ] Physics in gravity-frame: input/movement axes remapped by current orientation; collision queries unchanged (world-space)
-- [ ] Gale Drone enemy: floating, **radially symmetric sprite** so rotation never shows a wrong angle (hardware: sprites cannot rotate — INV-HW-004)
+- [x] Gale Drone enemy: floating, **radially symmetric sprite** so rotation never shows a wrong angle (hardware: sprites cannot rotate — INV-HW-004). Leashed floater per D-014; contact damage lands with death/respawn (Phase 3.5)
 - [ ] One complete puzzle chamber: requires two reorientations + a crate to open the exit
 - [ ] Chamber palette discipline: tiles use colors 0–127, sprites 128–255 (INV-HW-006)
 

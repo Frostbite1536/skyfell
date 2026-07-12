@@ -64,6 +64,16 @@
 #define CHAM_SPAWN_X 512 /* world px, box top-left, on the arena floor */
 #define CHAM_SPAWN_Y 706
 
+/* --- the Gale Drone (Phase 3, D-014): leashed floater — bounces inside
+ * spawn-center +- DRONE_R, gravity/portal/solid-free by design. Authored
+ * spawns MUST give it a clear patrol box. --- */
+#define DRONE_VX 0x0100  /* 8.8: 1 px/f drift */
+#define DRONE_VY 0x00C0  /* 8.8: 0.75 px/f — incommensurate periods */
+#define DRONE_R 56       /* px: patrol half-extent around the spawn anchor */
+#define CHAM_DRONE_X 504 /* world px, box top-left (center 512,500 — clear
+                            of all chamber01 ledges + brass-strip fronts) */
+#define CHAM_DRONE_Y 492
+
 /* --- camera --- */
 #define CAM_EASE_X 16 /* max camera px/frame (teleport snap-ease) */
 #define CAM_EASE_Y 8  /* vertical: one BG row stream per frame max — two

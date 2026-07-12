@@ -37,8 +37,13 @@ static u8 anim;
 static u8 fsm;
 static u8 theta;        /* screen rotation angle, 0..255 */
 static u8 theta_tgt;
-static u8 rotating;     /* physics frozen while easing */
 static u8 tp_cool;      /* portal re-entry cooldown (the chamber player) */
+
+/* exported to entity.c's render + main.c's freeze gate (chamber.h) */
+u8 cham_rot;  /* physics frozen while easing (was the `rotating` static) */
+u8 cham_thk;  /* theta>>6 — valid at rest (entities hide mid-tween) */
+s16 cham_cx;  /* Wren's box center, world px: the M7 pivot */
+s16 cham_cy;
 
 /* gravity unit vector G and tangent T = (Gy, -Gx) per gravity state */
 static const s8 g_x[4] = {0, -1, 0, 1};
@@ -109,6 +114,9 @@ static void matrix_apply(void)
     s16 sn = (s16)sin256[theta];
     s16 cx = (s16)((s16)(cpx >> 8) + (box_w() >> 1));
     s16 cy = (s16)((s16)(cpy >> 8) + (box_h() >> 1));
+    cham_cx = cx; /* entity render pivot (chamber.h) */
+    cham_cy = cy;
+    cham_thk = (u8)(theta >> 6);
     vq_set_m7(cs, sn, (s16)(-sn), cs, cx, cy, (s16)(cx - 128), (s16)(cy - 112));
 }
 
@@ -155,7 +163,7 @@ void chamber_set_gravity(u8 g)
     cpy = (s32)y << 8;
     theta_tgt = theta_of[grav];
     if (theta != theta_tgt)
-        rotating = 1; /* physics freeze; ease in chamber_frame */
+        cham_rot = 1; /* physics freeze; ease in chamber_frame */
     gv = 0;
     tv = 0;
     grounded = 0;
@@ -186,6 +194,12 @@ void chamber_load(void)
     portal_world = 1; /* the validator/render read the chamber world */
     ent_clear_all();
 
+    /* the Gale Drone patrols the arena center (its D-014 leash box —
+     * spawn +- DRONE_R — clears every ledge and brass-strip front) */
+    n = ent_spawn(ET_DRONE, CHAM_DRONE_X, CHAM_DRONE_Y);
+    if ((u8)n != 0xFF)
+        ent_set_vel((u8)n, DRONE_VX, DRONE_VY);
+
     setMode(BG_MODE7, 0);
     *(vuint8 *)0x211A = 0x00; /* M7SEL: wrap (the map's edge is void) */
 
@@ -206,7 +220,7 @@ void chamber_load(void)
     grav = 0;
     theta = 0;
     theta_tgt = 0;
-    rotating = 0;
+    cham_rot = 0;
     tp_cool = 0;
     coyote = 0;
     jbuf = 0;
@@ -244,12 +258,12 @@ void chamber_frame(u16 pad)
     u8 w = box_w();
     u8 h = box_h();
 
-    if (rotating)
+    if (cham_rot)
     {
         /* eased spin: physics frozen, matrix steps toward the target */
         u8 d = (u8)(theta_tgt - theta);
         if (d == 0)
-            rotating = 0;
+            cham_rot = 0;
         else if (d < 128)
             theta = (u8)(theta + ((d < ROT_STEP) ? d : ROT_STEP));
         else
@@ -437,7 +451,7 @@ void chamber_render(void)
      * Frame select mirrors player.c's (sheet order in mkobj.py). */
     u8 f;
     u8 attr = (u8)(0x20 | (face ? 0x40 : 0));
-    if (rotating)
+    if (cham_rot)
         f = 6; /* braced jump pose through the spin */
     else if (fsm == PF_RUN)
         f = (u8)(2 + ((anim >> 3) & 3));

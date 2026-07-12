@@ -139,7 +139,11 @@ int main(void)
 #ifdef TEST_BUILD
             dbg_prof0 = vq_scanline();
 #endif
+            if (!cham_rot)
+                ent_update(); /* the tween freezes the WORLD: entities too
+                                 (they're hidden — sprites can't rotate) */
             chamber_render();
+            ent_render();
         }
         else
         {

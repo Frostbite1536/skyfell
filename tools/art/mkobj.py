@@ -7,7 +7,11 @@ TOP 16x16 half = tiles f*2, f*2+1, f*2+16, f*2+17 (rows 0-1); BOTTOM half =
 base tiles f*2 (top) and 32+f*2 (bottom).
 
 Frames: 0 idle, 1 idle-bob, 2..5 run cycle, 6 jump, 7 fall.
-Outputs: src/data/generated/obj.chr (64 tiles, 2KB), obj.pal (32B), obj.png.
+Entity band (rows 4-5): entity i's 16x16 base name = 64 + i*2.
+Drone band (rows 6-7): the Gale Drone's two spin frames at names 96/98 —
+RADIALLY SYMMETRIC (INV-HW-004/D-005: OBJ can't rotate; the chamber screen
+does, so a round drone reads right at every angle).
+Outputs: src/data/generated/obj.chr (128 tiles, 4KB), obj.pal (32B), obj.png.
 """
 import os
 import struct
@@ -220,16 +224,42 @@ def e_reticle():
     return c
 
 
+def e_drone(alt):
+    """The Gale Drone: brass ring fan, glass core, red eye. C4-symmetric
+    around (7,7) so the rotated chamber can never show it 'wrong' — the two
+    frames alternate vane positions (cardinal vs diagonal) to read as spin."""
+    c = E16()
+    for y in range(16):
+        for x in range(16):
+            d = (x - 7) * (x - 7) + (y - 7) * (y - 7)
+            if 33 <= d <= 52:
+                c.px(x, y, 8)      # brass ring
+            elif d <= 6:
+                c.px(x, y, 10)     # glass core
+            elif d <= 12:
+                c.px(x, y, 6)      # dark seat
+    if alt:
+        vanes = ((4, 4, 5, 5), (10, 4, 9, 5), (10, 10, 9, 9), (4, 10, 5, 9))
+    else:
+        vanes = ((7, 2, 7, 3), (12, 7, 11, 7), (7, 12, 7, 11), (2, 7, 3, 7))
+    for (x0, y0, x1, y1) in vanes:
+        c.px(x0, y0, 9)            # vane tip (bright brass)
+        c.px(x1, y1, 9)
+    c.px(7, 7, 15)                 # the eye
+    return c
+
+
 ENTS = [e_crate(), e_sentry(False), e_sentry(True),
         e_shot(False), e_shot(True), e_sshot(), e_reticle()]
+DRONES = [e_drone(False), e_drone(True)]
 
 
 def main():
     os.makedirs(GEN, exist_ok=True)
-    # name table: 16 tiles x 6 rows. Player frame f: top half at col f*2
+    # name table: 16 tiles x 8 rows. Player frame f: top half at col f*2
     # rows 0-1, bottom half rows 2-3. Entity i: 16x16 at col i*2 rows 4-5
-    # (base name 64 + i*2).
-    sheet = [[0] * 128 for _ in range(48)]
+    # (base name 64 + i*2). Drone frame j: col j*2 rows 6-7 (name 96 + j*2).
+    sheet = [[0] * 128 for _ in range(64)]
     for f, kind in enumerate(FRAMES):
         c = frame(kind)
         for y in range(16):
@@ -240,13 +270,17 @@ def main():
         for y in range(16):
             for x in range(16):
                 sheet[32 + y][i * 16 + x] = e.p[y][x]
-    # cut into 8x8 tiles in NAME-TABLE order (16 tiles/row, 6 rows)
+    for j, e in enumerate(DRONES):
+        for y in range(16):
+            for x in range(16):
+                sheet[48 + y][j * 16 + x] = e.p[y][x]
+    # cut into 8x8 tiles in NAME-TABLE order (16 tiles/row, 8 rows)
     tiles = []
-    for trow in range(6):
+    for trow in range(8):
         for tcol in range(16):
             t = [[sheet[trow * 8 + y][tcol * 8 + x] for x in range(8)] for y in range(8)]
             tiles.append(t)
-    assert len(tiles) == 96
+    assert len(tiles) == 128
 
     with open(os.path.join(GEN, "obj.chr"), "wb") as f:
         for t in tiles:
@@ -257,14 +291,14 @@ def main():
 
     # preview PNG (magenta backdrop so transparency reads)
     rows = []
-    for y in range(48):
+    for y in range(64):
         row = bytearray()
         for x in range(128):
             v = PAL[sheet[y][x]] if sheet[y][x] else 0x552255
             row += bytes(((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF))
         rows.append(bytes(row))
-    write_png(os.path.join(GEN, "obj.png"), 128, 48, rows)
-    print("mkobj: 8 frames -> obj.chr/pal/png")
+    write_png(os.path.join(GEN, "obj.png"), 128, 64, rows)
+    print("mkobj: 8 frames + 7 entities + 2 drone frames -> obj.chr/pal/png")
 
 
 if __name__ == "__main__":
