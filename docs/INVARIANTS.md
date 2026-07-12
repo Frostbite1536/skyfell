@@ -101,7 +101,7 @@ Every invariant maps to at least one of: a scripted Lua test, a build-time asser
 | Date | ID | Change | Reason | Approved |
 |---|---|---|---|---|
 | 2026-07-07 | all | Initial set (planning) | — | Jeremy (pending Phase 0 reality-check) |
-| 2026-07-12 | INV-ENG-004 | Teleport revalidation refined to the EXIT portal only (placement still validates fully; one shared validator) | The entry plane was just crossed — terrain is immutable and an entity behind the mover can't endanger the transit; the redundant entry check cost measured transit-frame lag. Revisit when destructible/moving surfaces exist (magnet-plates, Phase 5). | overnight-run judgment (Jeremy: see JEREMY-INBOX) |
+| 2026-07-12 | INV-ENG-004 | Teleport revalidation refined to the EXIT portal only (placement still validates fully; one shared validator) | The entry plane was just crossed — terrain is immutable and an entity behind the mover can't endanger the transit; the redundant entry check cost measured transit-frame lag. Revisit when destructible/moving surfaces exist (magnet-plates, Phase 5). | Jeremy 2026-07-12 |
 
 ---
 **Last Updated**: 2026-07-07

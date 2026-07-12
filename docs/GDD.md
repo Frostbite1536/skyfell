@@ -44,8 +44,8 @@ Run max 1.5 px/f, jump apex ≈ 2 metatiles, gravity 0.1875 px/f², terminal 4 p
 |---|---|
 | D-pad | Move / aim direction |
 | B | Jump |
-| Y | Fire portal (current color) |
-| X | Toggle blue/gold |
+| Y | Fire BLUE portal |
+| X | Fire GOLD portal |
 | A | Grab/throw crate, interact |
 | R (hold) | 8-way aim lock |
 | L | Crouch / peek down |

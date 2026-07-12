@@ -30,7 +30,6 @@ static u8 anim;   /* frame counter for animation */
 static u8 tp_cool;  /* portal re-entry cooldown */
 static u8 aiming;   /* R held (reticle shows) */
 static u8 aim;      /* 8-way: 0 E,1 NE,2 N,3 NW,4 W,5 SW,6 S,7 SE */
-static u8 cur_col;  /* PC_BLUE / PC_GOLD */
 static u8 held_y, held_x, held_a, held_sel; /* edge detectors */
 
 /* aim direction -> shot velocity components (SHOT_SPD per axis; diagonals
@@ -135,7 +134,6 @@ void player_init(u16 x, u16 y)
     tp_cool = 0;
     aiming = 0;
     aim = 0;
-    cur_col = 0;
     held_y = 0;
     held_x = 0;
     held_a = 0;
@@ -211,6 +209,16 @@ void player_warp(u16 x, u16 y)
     room_cam_warp((u16)cx, (u16)cy);
 }
 
+/* spawn a portal shot from the box center along the current aim */
+static void fire_shot(u8 type)
+{
+    u8 s = ent_spawn(type,
+                     (u16)((s16)(px >> 8) + (PB_W >> 1) - (SHOT_BOX >> 1)),
+                     (u16)((s16)(py >> 8) + 8));
+    if (s != 0xFF)
+        ent_set_vel(s, aim_vx[aim], aim_vy[aim]);
+}
+
 void player_update(u16 pad)
 {
     s16 x, y;
@@ -221,15 +229,17 @@ void player_update(u16 pad)
 
     aiming = (u8)((pad & KEY_R) ? 1 : 0);
 
-    /* --- input: run --- */
-    if (pad & KEY_RIGHT)
+    /* --- input: run (aim-lock: while R is held the d-pad ONLY aims —
+     * Jeremy's playtest 2026-07-12: drifting while lining up a corner shot
+     * felt wrong) --- */
+    if (!aiming && (pad & KEY_RIGHT))
     {
         vx += P_WALK_ACC;
         if (vx > P_WALK_MAX)
             vx = P_WALK_MAX;
         face = 0;
     }
-    else if (pad & KEY_LEFT)
+    else if (!aiming && (pad & KEY_LEFT))
     {
         vx -= P_WALK_ACC;
         if (vx < -P_WALK_MAX)
@@ -399,18 +409,14 @@ void player_update(u16 pad)
             aim = 2;
         else if (pad & KEY_DOWN)
             aim = 6;
+        if (aim == 0 || aim == 1 || aim == 7)
+            face = 0; /* facing follows a horizontal-ish aim */
+        else if (aim >= 3 && aim <= 5)
+            face = 1;
     }
     else
         aim = face ? 4 : 0; /* unlocked: aim rides the facing */
 
-    if (pad & KEY_X)
-    {
-        if (!held_x)
-            cur_col ^= 1; /* toggle blue/gold */
-        held_x = 1;
-    }
-    else
-        held_x = 0;
 
     if (pad & KEY_SELECT)
     {
@@ -430,21 +436,25 @@ void player_update(u16 pad)
     else
         held_a = 0;
 
+    /* two fire buttons — Y blue, X gold (playtest 2026-07-12: the
+     * fire+toggle scheme kept re-firing one color; direct buttons are
+     * discoverable) */
     if (pad & KEY_Y)
     {
         if (!held_y)
-        {
-            /* fire: a shot entity from the box center along the aim */
-            u8 s = ent_spawn((u8)(cur_col ? ET_SHOT_G : ET_SHOT_B),
-                             (u16)((s16)(px >> 8) + (PB_W >> 1) - (SHOT_BOX >> 1)),
-                             (u16)((s16)(py >> 8) + 8));
-            if (s != 0xFF)
-                ent_set_vel(s, aim_vx[aim], aim_vy[aim]);
-        }
+            fire_shot(ET_SHOT_B);
         held_y = 1;
     }
     else
         held_y = 0;
+    if (pad & KEY_X)
+    {
+        if (!held_x)
+            fire_shot(ET_SHOT_G);
+        held_x = 1;
+    }
+    else
+        held_x = 0;
 
     /* --- FSM --- */
     if (grounded)

@@ -45,4 +45,4 @@ No claim without a run: every phase gates on scripted emulator tests (input play
 
 ## License
 
-TBD (tracked as D-009). Homebrew: contains no Nintendo code or assets.
+All rights reserved (D-009, may open-source later). Homebrew: contains no Nintendo code or assets.

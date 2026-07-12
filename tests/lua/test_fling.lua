@@ -46,10 +46,11 @@ H.run(function()
     H.waitFrames(4)
     H.snap("fling_portals")
 
-    -- drop Wren onto the blue portal from high above: entry vy = terminal.
-    -- x=790: inside the blue strip (752-800) but CLEAR of the row-18 girder
-    -- (ends at px 783) that a more central drop would land on.
-    posset(790, 200)
+    -- drop Wren onto the blue portal: entry vy = terminal (needs only
+    -- ~43px of fall). x=790 inside the blue strip (752-800); y=320 starts
+    -- BELOW the row-18 girder that now spans the pad (the tower-access
+    -- walkway from Jeremy's 2026-07-12 playtest).
+    posset(790, 320)
     H.waitUntil(function() return H.dbgU16(48) >= 1 end, 240, "teleport", 15)
 
     -- momentum conserved EXACTLY: entry (0, +0x400) -> exit (-0x400, 0)
