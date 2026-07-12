@@ -61,6 +61,7 @@ extern u16 dbg_fizz;
 extern u16 dbg_mainv;
 extern u16 dbg_prof0;
 extern u16 dbg_prof1;
+extern u16 dbg_exit; /* +68: puzzle exit reached (chamber.c) */
 #endif
 
 int main(void)
@@ -121,6 +122,7 @@ int main(void)
     dbg_ewatch = 0x00FF; /* no slot watched */
     dbg_fizz = 0;
     dbg_mainv = 0;
+    dbg_exit = 0;
     dbg_magic = 0x51FE;
 #endif
 

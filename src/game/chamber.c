@@ -8,7 +8,10 @@
 #include "src/game/room.h"
 #include "src/game/tuning.h"
 
-extern u8 cham_map[];  /* chamber.asm: 128x128 tile bytes */
+extern u8 cham_map[];  /* chamram.asm: the LIVE map, WRAM bank $7F —
+                          128x128 tile bytes shared by every solid reader;
+                          MUTATES (the exit door opens) */
+extern u8 cham_rom_map[]; /* chamber.asm: the authored ROM original */
 extern u16 cham_att[]; /* attr per tile id (low col, high mat) */
 extern char cham_chr, cham_chr_end, cham_pal;
 extern char obj_chr, obj_chr_end; /* data.asm (player_obj_init loads pal) */
@@ -24,6 +27,7 @@ extern u8 dbg_grav;
 extern u8 dbg_fsm;
 extern u8 dbg_room;
 extern u8 dbg_roomck;
+extern u16 dbg_exit; /* dbg.asm +68: puzzle exit reached */
 #endif
 
 /* --- state (chamber_load resets everything; repo convention) --- */
@@ -40,13 +44,16 @@ static u8 theta_tgt;
 static u8 tp_cool;      /* portal re-entry cooldown (the chamber player) */
 static u8 aiming;       /* R held (reticle shows, movement locked, D-013) */
 static u8 aim;          /* 8-way SCREEN direction: 0 E,1 NE,..,7 SE */
-static u8 held_y, held_x, held_sel; /* fire/recall edge detectors */
+static u8 held_y, held_x, held_sel, held_a; /* edge detectors */
+static u8 door_open;    /* the puzzle exit (D-015) */
 
 /* exported to entity.c's render + main.c's freeze gate (chamber.h) */
 u8 cham_rot;  /* physics frozen while easing (was the `rotating` static) */
 u8 cham_thk;  /* theta>>6 — valid at rest (entities hide mid-tween) */
 s16 cham_cx;  /* Wren's box center, world px: the M7 pivot */
 s16 cham_cy;
+s8 cham_gx;   /* gravity unit vector, world (crate physics, entity.c) */
+s8 cham_gy;
 
 /* gravity unit vector G and tangent T = (Gy, -Gx) per gravity state */
 static const s8 g_x[4] = {0, -1, 0, 1};
@@ -150,24 +157,98 @@ static void matrix_apply(void)
     vq_set_m7(cs, sn, (s16)(-sn), cs, cx, cy, (s16)(cx - 128), (s16)(cy - 112));
 }
 
-/* RAW solidity — ignores open portals: the gravity-change eject must pull
- * the body fully out of walls even where a portal hole currently sits
- * (the hole closes on recall; a body left inside is entombed — the bug
- * that buried Wren 17px into the floor) */
-static u8 craw_box(s16 x, s16 y, u8 w, u8 h)
+/* --- the puzzle (D-015, authored in chamber01.txt) ---
+ * Pad: ceiling metatiles row 1 cols 6-7 — a crate RESTING against the
+ * ceiling (gravity up) with its top at y=288 and center x in 352..383.
+ * Door: left-wall metatiles col 1 rows 2-3 = map tiles tx 34-35 ty 36-39
+ * (px x 272-287, y 288-319); open = cells swap to tile 0 (void), in the
+ * LIVE map (collision) and VRAM (render) together — one ROW per frame
+ * (the all-at-once open plus the probe overran the frame; the slide is
+ * free animation). The probe runs ONLY on a crate-sleep event
+ * (ent_slept) — a per-frame probe call cost measured lag frames. */
+#define PAD_X0 352
+#define PAD_X1 383
+#define PAD_Y 288
+static u8 door_row;  /* rows opened so far, 0..4 */
+static u8 door_z[2]; /* zeroed at use — WRAM boots as garbage */
+static u8 eject_pend; /* burial eject deferred to the first tween frame */
+
+/* eject against gravity until clear of RAW solids: portal holes count as
+ * walls (they close on recall — the 17px floor-burial bug). SNAP, don't
+ * step: scan the box's tiles once, move flush past the binding solid
+ * along -gravity, re-verify (per-px craw_box stepping measured a full
+ * frame over budget — scanline probe twice, p0=243 then mainv wrap).
+ * For a flat surface burial the result is identical to the old stepper.
+ * Runs on the FIRST TWEEN FRAME (transit frames are the worst case);
+ * displacement capped at 32px like the old 24-step cap. */
+static void eject_box(void)
 {
-    s16 tx, ty;
-    s16 tx1 = (s16)(x + w - 1) >> 3;
-    s16 ty1 = (s16)(y + h - 1) >> 3;
-    for (ty = y >> 3; ty <= ty1; ty++)
-        for (tx = x >> 3; tx <= tx1; tx++)
-        {
-            if ((u16)tx >= 128 || (u16)ty >= 128)
-                return 1;
-            if ((u8)cham_att[cham_map[(u16)(((u16)ty << 7) + (u16)tx)]])
-                return 1;
-        }
-    return 0;
+    s16 x = (s16)(cpx >> 8);
+    s16 y = (s16)(cpy >> 8);
+    s16 sx = x;
+    s16 sy = y;
+    u8 w = box_w();
+    u8 h = box_h();
+    s16 tx, ty, tx1, ty1;
+    s16 mnx, mxx, mny, mxy;
+    s16 d;
+    u8 pass;
+    for (pass = 0; pass < 4; pass++)
+    {
+        mnx = 999;
+        mxx = -1;
+        mny = 999;
+        mxy = -1;
+        tx1 = (s16)(x + w - 1) >> 3;
+        ty1 = (s16)(y + h - 1) >> 3;
+        for (ty = y >> 3; ty <= ty1; ty++)
+            for (tx = x >> 3; tx <= tx1; tx++)
+            {
+                u8 s = 0;
+                if ((u16)tx >= 128)
+                    s = 1;
+                else if ((u16)ty >= 128)
+                    s = 1;
+                else if ((u8)cham_att[cham_map[(u16)(((u16)ty << 7) + (u16)tx)]])
+                    s = 1;
+                if (!s)
+                    continue;
+                if (tx < mnx)
+                    mnx = tx;
+                if (tx > mxx)
+                    mxx = tx;
+                if (ty < mny)
+                    mny = ty;
+                if (ty > mxy)
+                    mxy = ty;
+            }
+        if (mxx < 0)
+            break; /* clear */
+        if (grav == 0)
+            y = (s16)((mny << 3) - h);
+        else if (grav == 2)
+            y = (s16)((mxy + 1) << 3);
+        else if (grav == 3)
+            x = (s16)((mnx << 3) - w);
+        else
+            x = (s16)((mxx + 1) << 3);
+    }
+    d = (s16)(x - sx);
+    if (d > 32)
+        x = (s16)(sx + 32);
+    else if (d < -32)
+        x = (s16)(sx - 32);
+    d = (s16)(y - sy);
+    if (d > 32)
+        y = (s16)(sy + 32);
+    else if (d < -32)
+        y = (s16)(sy - 32);
+    cpx = (s32)x << 8;
+    cpy = (s32)y << 8;
+#ifdef TEST_BUILD
+    dbg_px = cpx;
+    dbg_py = cpy;
+#endif
 }
 
 void chamber_set_gravity(u8 g)
@@ -179,21 +260,23 @@ void chamber_set_gravity(u8 g)
     s16 cx = (s16)((s16)(cpx >> 8) + (ow >> 1));
     s16 cy = (s16)((s16)(cpy >> 8) + (oh >> 1));
     s16 x, y;
-    u8 k;
     grav = (u8)(g & 3);
+    cham_gx = g_x[grav];
+    cham_gy = g_y[grav];
+    ent_wake_all(); /* crates fall along the NEW gravity */
     x = (s16)(cx - (box_w() >> 1));
     y = (s16)(cy - (box_h() >> 1));
-    /* eject against the new gravity until clear of RAW solids (<=24px) */
-    for (k = 0; k < 24 && craw_box(x, y, box_w(), box_h()); k++)
-    {
-        x = (s16)(x - g_x[grav]);
-        y = (s16)(y - g_y[grav]);
-    }
     cpx = (s32)x << 8;
     cpy = (s32)y << 8;
     theta_tgt = theta_of[grav];
     if (theta != theta_tgt)
-        cham_rot = 1; /* physics freeze; ease in chamber_frame */
+    {
+        cham_rot = 1;   /* physics freeze; ease in chamber_frame */
+        eject_pend = 1; /* eject on the first tween frame (the matrix
+                           pivot is <=24px off for that ONE frame) */
+    }
+    else
+        eject_box(); /* no tween (same angle): resolve now */
     gv = 0;
     tv = 0;
     grounded = 0;
@@ -224,11 +307,24 @@ void chamber_load(void)
     portal_world = 1; /* the validator/render read the chamber world */
     ent_clear_all();
 
+    /* the LIVE map: copy the authored ROM chamber into WRAM bank $7F
+     * (chamram.asm) — the world mutates (the exit door opens) and all
+     * solid readers share this one truth */
+    for (i = 0; i < 16384; i++)
+        cham_map[i] = cham_rom_map[i];
+    door_open = 0;
+    door_row = 0;
+    eject_pend = 0;
+
     /* the Gale Drone patrols the arena center (its D-014 leash box —
      * spawn +- DRONE_R — clears every ledge and brass-strip front) */
     n = ent_spawn(ET_DRONE, CHAM_DRONE_X, CHAM_DRONE_Y);
     if ((u8)n != 0xFF)
         ent_set_vel((u8)n, DRONE_VX, DRONE_VY);
+
+    /* the puzzle crate: on ledge B, unreachable under gravity-down —
+     * reorient to fetch it (D-015) */
+    ent_spawn(ET_CRATE, 624, 546);
 
     setMode(BG_MODE7, 0);
     *(vuint8 *)0x211A = 0x00; /* M7SEL: wrap (the map's edge is void) */
@@ -248,6 +344,8 @@ void chamber_load(void)
 
     /* spawn on the arena floor, gravity down */
     grav = 0;
+    cham_gx = 0;
+    cham_gy = 1;
     theta = 0;
     theta_tgt = 0;
     cham_rot = 0;
@@ -262,6 +360,7 @@ void chamber_load(void)
     held_y = 0;
     held_x = 0;
     held_sel = 0;
+    held_a = 0;
     fsm = PF_FALL;
     chamber_warp(CHAM_SPAWN_X, CHAM_SPAWN_Y);
     vq_set_m7_on(1);
@@ -276,6 +375,7 @@ void chamber_load(void)
         dbg_roomck = (ck == CHAM_CKSUM) ? 1 : 2;
         dbg_room = 1;
         dbg_grav = grav;
+        dbg_exit = 0; /* fresh puzzle per load */
     }
     n = 0; /* keep tcc quiet in release */
 #endif
@@ -297,6 +397,11 @@ void chamber_frame(u16 pad)
     {
         /* eased spin: physics frozen, matrix steps toward the target */
         u8 d = (u8)(theta_tgt - theta);
+        if (eject_pend)
+        {
+            eject_pend = 0;
+            eject_box(); /* the deferred burial eject (frame budget) */
+        }
         if (d == 0)
             cham_rot = 0;
         else if (d < 128)
@@ -528,7 +633,43 @@ void chamber_frame(u16 pad)
     }
     else
         held_x = 0;
-    /* A grab/throw arrives with chamber crates (the puzzle unit) */
+    if (pad & KEY_A)
+    {
+        if (!held_a)
+            ent_grab_toggle(); /* grab / drop the crate (chamber drop is a
+                                  straight anti-gravity pop, D-015) */
+        held_a = 1;
+    }
+    else
+        held_a = 0;
+
+    /* --- the puzzle door: inline gates, calls only on event frames --- */
+    if (!door_open)
+    {
+        if (ent_slept)
+        {
+            ent_slept = 0;
+            if (ent_crate_resting(PAD_X0, PAD_X1, PAD_Y))
+                door_open = 1;
+        }
+    }
+    else if (door_row < 4)
+    {
+        t = (s16)(36 + door_row); /* slide open one row per frame */
+        door_z[0] = 0;
+        door_z[1] = 0;
+        cham_map[(u16)(((u16)t << 7) + 34)] = 0;
+        cham_map[(u16)(((u16)t << 7) + 35)] = 0;
+        vq_push_m7map((u16)(((u16)t << 7) + 34), door_z, 2);
+        door_row++;
+    }
+    else if ((s16)(cpx >> 8) < 280)
+    {
+        /* the recess is the only reachable x < 280 in this world */
+#ifdef TEST_BUILD
+        dbg_exit = 1; /* Phase 3.5 wires the real room transition */
+#endif
+    }
 
     fsm = grounded ? ((tv != 0) ? PF_RUN : PF_IDLE) : ((gv < 0) ? PF_JUMP : PF_FALL);
     anim++;

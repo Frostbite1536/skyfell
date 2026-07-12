@@ -1,10 +1,10 @@
 .include "hdr.asm"
 
-; SKYFELL debug/test block — INV-TEST-001: append-only; offsets are the
+; SKYFELL debug/test block ??? INV-TEST-001: append-only; offsets are the
 ; contract in tests/README.md. Compiled into every build; only TEST builds
 ; write it (src/main.c guards with #ifdef TEST_BUILD).
 ;
-; Placement: $7E:FF00 (D-010) — top page of WRAM bank $7E, which is the
+; Placement: $7E:FF00 (D-010) ??? top page of WRAM bank $7E, which is the
 ; run-time data bank (crt0_snes.asm sets DBR=$7E), so C code reaches these
 ; labels with plain absolute addressing and Lua reads 0x7EFF00.
 ; The planning-time address $7E1F00 was REJECTED (D-010, proven in sibling
@@ -13,7 +13,7 @@
 ; section collision.
 
 ; BANK 126 = $7E: tcc addresses these labels with absolute-long (sta.l), so the
-; section's bank byte must be the real WRAM bank — BANK 0 sends writes into ROM
+; section's bank byte must be the real WRAM bank ??? BANK 0 sends writes into ROM
 ; space at $00:FF00 (prophet found that the hard way).
 .RAMSECTION ".dbg" BANK 126 SLOT 2 ORGA $FF00 FORCE
 dbg_magic     dsw 1  ; +0  u16  0x51FE while a TEST build is alive
@@ -56,5 +56,7 @@ dbg_mainv     dsw 1  ; +62 u16  scanline where the main loop finished its
                      ;          frame work (frame-cost probe; <225 = healthy)
 dbg_prof0     dsw 1  ; +64 u16  profiling scratch: scanline at a bracketed
 dbg_prof1     dsw 1  ; +66 u16  code path's entry (+64) and exit (+66)
-; --- append new fields at +68; never repack (INV-TEST-001) ---
+; --- Phase 3 appends (2026-07-12) ---
+dbg_exit      dsw 1  ; +68 u16  puzzle exit reached (chamber.c door recess)
+; --- append new fields at +70; never repack (INV-TEST-001) ---
 .ENDS

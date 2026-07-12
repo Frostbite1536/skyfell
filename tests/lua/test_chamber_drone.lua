@@ -20,7 +20,7 @@ H.run(function()
     H.warp(1, 14) -- enter the chamber
     H.waitUntil(function() return H.dbgU8(18) == 1 end, 120, "chamber", 14)
     H.waitFrames(2) -- dbg_entn updates on the first chamber ent_update
-    H.assertEq(H.dbgU8(21), 1, "the drone spawned", 14)
+    H.assertEq(H.dbgU8(21), 2, "the drone + the puzzle crate spawned", 14)
     verb(7, 0, 0) -- watch slot 0 (chamber_load spawns the drone first)
     H.waitFrames(2)
 

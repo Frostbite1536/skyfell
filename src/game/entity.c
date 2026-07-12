@@ -74,11 +74,17 @@ static void rebuild_crate_list(void)
     }
 }
 
+u8 ent_slept; /* a crate went to sleep THIS frame — chamber.c's pad probe
+                 runs only on this event (a per-frame probe call cost
+                 measured lag frames; chamber.c clears it) */
+
 void ent_wake_all(void)
 {
-    u8 i;
-    for (i = 0; i < ENT_MAX; i++)
-        e_slp[i] = 0;
+    /* only crates sleep — walk the compact list, not 16 slots (this runs
+     * on the gravity-change transit frame, the budget's worst case) */
+    u8 k;
+    for (k = 0; k < crate_cnt; k++)
+        e_slp[crate_slots[k]] = 0;
 }
 
 void ent_clear_all(void)
@@ -100,6 +106,7 @@ void ent_clear_all(void)
     carried = 0xFF;
     crate_cnt = 0;
     live_cnt = 0;
+    ent_slept = 0;
 #ifdef TEST_BUILD
     dbg_entn = 0;
 #endif
@@ -161,6 +168,26 @@ void ent_room_init(u8 room)
     s = ent_spawn(ET_SENTRY, 896, 432);     /* right shaft, between the
                                                brass tower and pillar */
     ent_set_face(s, 1);                     /* fires left, at the tower */
+}
+
+/* puzzle probe (chamber.c door_check): is any crate ASLEEP with its box
+ * top at ytop and its center x inside [x0,x1]? (the ceiling pressure pad) */
+u8 ent_crate_resting(u16 x0, u16 x1, u16 ytop)
+{
+    u8 k, i;
+    s16 cx;
+    for (k = 0; k < crate_cnt; k++)
+    {
+        i = crate_slots[k];
+        if (!e_slp[i])
+            continue;
+        if ((u16)(e_y[i] >> 8) != ytop)
+            continue;
+        cx = (s16)((s16)(e_x[i] >> 8) + (CRATE_W >> 1));
+        if (cx >= (s16)x0 && cx <= (s16)x1)
+            return 1;
+    }
+    return 0;
 }
 
 u8 ent_occupies_rect(u16 tx0, u16 ty0, u16 tx1, u16 ty1, u8 exclude)
@@ -256,47 +283,126 @@ static void crate_clamp_x(u8 self, s16 *x, s16 *vx)
     }
 }
 
-/* one physics frame for a crate */
+/* one physics frame for a crate. In the chamber, gravity is the current
+ * vector (cham_gx/gy): friction rides the tangent axis, gravity + terminal
+ * ride the G axis, and "landed" means clamped on the gravity-facing side.
+ * Room path (portal_world==0) is the original shape, bit-identical
+ * (goldens/replay). Nested ifs, never compound guards (the tcc816 trap). */
 static void crate_frame(u8 i)
 {
     s16 x, y, t;
     u8 landed = 0;
+    u8 hgrav = 0; /* horizontal gravity (chamber, gravity = +-x) */
+    u8 gup = 0;   /* inverted vertical gravity (chamber, gravity = -y) */
 
     if (e_st[i] == 2)
     {
-        /* carried: ride above Wren's head, no physics */
-        e_x[i] = (s32)((s16)(player_px() + ((PB_W - CRATE_W) >> 1))) << 8;
-        e_y[i] = (s32)((s16)(player_py() - CRATE_H - 2)) << 8;
+        if (portal_world)
+        {
+            /* carried: ride 24px against gravity off Wren's box center */
+            s16 cx = cham_cx;
+            s16 cy = cham_cy;
+            if (cham_gx > 0)
+                cx = (s16)(cx - 24);
+            else if (cham_gx < 0)
+                cx = (s16)(cx + 24);
+            if (cham_gy > 0)
+                cy = (s16)(cy - 24);
+            else if (cham_gy < 0)
+                cy = (s16)(cy + 24);
+            e_x[i] = (s32)((s16)(cx - (CRATE_W >> 1))) << 8;
+            e_y[i] = (s32)((s16)(cy - (CRATE_H >> 1))) << 8;
+        }
+        else
+        {
+            /* carried: ride above Wren's head, no physics */
+            e_x[i] = (s32)((s16)(player_px() + ((PB_W - CRATE_W) >> 1))) << 8;
+            e_y[i] = (s32)((s16)(player_py() - CRATE_H - 2)) << 8;
+        }
         e_vx[i] = 0;
         e_vy[i] = 0;
         return;
     }
     if (e_slp[i])
-        return; /* at rest — woken by push/grab/portal changes */
+        return; /* at rest — woken by push/grab/portal/gravity changes */
 
-    /* friction + gravity */
-    if (e_vx[i] > 0)
+    if (portal_world)
     {
-        e_vx[i] -= CRATE_FRIC;
-        if (e_vx[i] < 0)
-            e_vx[i] = 0;
+        if (cham_gx)
+            hgrav = 1;
+        else if (cham_gy < 0)
+            gup = 1;
     }
-    else if (e_vx[i] < 0)
+
+    /* friction (tangent axis) + gravity (G axis) */
+    if (hgrav)
     {
-        e_vx[i] += CRATE_FRIC;
+        if (e_vy[i] > 0)
+        {
+            e_vy[i] -= CRATE_FRIC;
+            if (e_vy[i] < 0)
+                e_vy[i] = 0;
+        }
+        else if (e_vy[i] < 0)
+        {
+            e_vy[i] += CRATE_FRIC;
+            if (e_vy[i] > 0)
+                e_vy[i] = 0;
+        }
+        if (cham_gx > 0)
+        {
+            e_vx[i] += P_GRAV;
+            if (e_vx[i] > P_TERM_VY)
+                e_vx[i] = P_TERM_VY;
+        }
+        else
+        {
+            e_vx[i] -= P_GRAV;
+            if (e_vx[i] < -P_TERM_VY)
+                e_vx[i] = -P_TERM_VY;
+        }
+    }
+    else
+    {
         if (e_vx[i] > 0)
-            e_vx[i] = 0;
+        {
+            e_vx[i] -= CRATE_FRIC;
+            if (e_vx[i] < 0)
+                e_vx[i] = 0;
+        }
+        else if (e_vx[i] < 0)
+        {
+            e_vx[i] += CRATE_FRIC;
+            if (e_vx[i] > 0)
+                e_vx[i] = 0;
+        }
+        if (gup)
+        {
+            e_vy[i] -= P_GRAV;
+            if (e_vy[i] < -P_TERM_VY)
+                e_vy[i] = -P_TERM_VY;
+        }
+        else
+        {
+            e_vy[i] += P_GRAV;
+            if (e_vy[i] > P_TERM_VY)
+                e_vy[i] = P_TERM_VY;
+        }
     }
-    e_vy[i] += P_GRAV;
-    if (e_vy[i] > P_TERM_VY)
-        e_vy[i] = P_TERM_VY;
 
-    /* X move: portal transit first (leading edge), else sweep + clamp */
-    portal_cool(&e_cool[i]);
+    /* X move: portal transit first (leading edge), else sweep + clamp.
+     * Airborne crates run this every frame for whole-arena flights in the
+     * chamber — cooldown inline, portal_check behind the portal_any gate,
+     * crate-vs-crate only with 2+ crates (call costs measured lag). */
+    if (e_cool[i])
+        e_cool[i]--;
     e_x[i] += e_vx[i];
-    if (portal_check(0, &e_x[i], &e_y[i], &e_vx[i], &e_vy[i], &e_cool[i],
-                     CRATE_W, CRATE_H, i))
-        return; /* rode a wall rift */
+    if (portal_any)
+    {
+        if (portal_check(0, &e_x[i], &e_y[i], &e_vx[i], &e_vy[i],
+                         &e_cool[i], CRATE_W, CRATE_H, i))
+            return; /* rode a wall rift */
+    }
     x = (s16)(e_x[i] >> 8);
     y = (s16)(e_y[i] >> 8);
     if (e_vx[i] > 0)
@@ -306,6 +412,11 @@ static void crate_frame(u8 i)
         {
             x = (s16)((t << 3) - CRATE_W);
             e_vx[i] = 0;
+            if (hgrav)
+            {
+                if (cham_gx > 0)
+                    landed = 1;
+            }
         }
     }
     else if (e_vx[i] < 0)
@@ -315,16 +426,25 @@ static void crate_frame(u8 i)
         {
             x = (s16)((t + 1) << 3);
             e_vx[i] = 0;
+            if (hgrav)
+            {
+                if (cham_gx < 0)
+                    landed = 1;
+            }
         }
     }
-    crate_clamp_x(i, &x, &e_vx[i]);
+    if (crate_cnt > 1)
+        crate_clamp_x(i, &x, &e_vx[i]);
     e_x[i] = (s32)x << 8;
 
     /* Y move: same order (crates don't stack in v1 — pushing resolves) */
     e_y[i] += e_vy[i];
-    if (portal_check(1, &e_x[i], &e_y[i], &e_vx[i], &e_vy[i], &e_cool[i],
-                     CRATE_W, CRATE_H, i))
-        return; /* rode a floor/ceiling rift */
+    if (portal_any)
+    {
+        if (portal_check(1, &e_x[i], &e_y[i], &e_vx[i], &e_vy[i],
+                         &e_cool[i], CRATE_W, CRATE_H, i))
+            return; /* rode a floor/ceiling rift */
+    }
     x = (s16)(e_x[i] >> 8);
     y = (s16)(e_y[i] >> 8);
     if (e_vy[i] > 0)
@@ -334,7 +454,11 @@ static void crate_frame(u8 i)
         {
             y = (s16)((t << 3) - CRATE_H);
             e_vy[i] = 0;
-            landed = 1;
+            if (!gup)
+            {
+                if (!hgrav)
+                    landed = 1;
+            }
         }
     }
     else if (e_vy[i] < 0)
@@ -344,13 +468,32 @@ static void crate_frame(u8 i)
         {
             y = (s16)((t + 1) << 3);
             e_vy[i] = 0;
+            if (gup)
+                landed = 1;
         }
     }
     e_y[i] = (s32)y << 8;
 
-    /* landed with no drift -> sleep until pushed/grabbed/portal change */
-    if (landed && e_vx[i] == 0 && e_cool[i] == 0)
-        e_slp[i] = 1;
+    /* landed with no tangential drift -> sleep until woken */
+    if (landed && e_cool[i] == 0)
+    {
+        if (hgrav)
+        {
+            if (e_vy[i] == 0)
+            {
+                e_slp[i] = 1;
+                ent_slept = 1;
+            }
+        }
+        else
+        {
+            if (e_vx[i] == 0)
+            {
+                e_slp[i] = 1;
+                ent_slept = 1;
+            }
+        }
+    }
 }
 
 /* a moving shot: portal transit first, then wall/target checks.
@@ -624,19 +767,39 @@ void ent_grab_toggle(void)
     s16 pcx, pcy, ccx, ccy, dx, dy;
     if (carried != 0xFF)
     {
-        /* throw with Wren's facing */
         i = carried;
         e_st[i] = 0;
         e_slp[i] = 0;
-        e_vx[i] = player_face() ? -THROW_VX : THROW_VX;
-        e_vy[i] = THROW_VY;
+        if (portal_world)
+        {
+            /* chamber drop: a straight anti-gravity pop, no tangent
+             * impulse — predictable placement under any gravity (D-015) */
+            e_vx[i] = (s16)((cham_gx > 0) ? THROW_VY
+                            : (cham_gx < 0) ? -THROW_VY : 0);
+            e_vy[i] = (s16)((cham_gy > 0) ? THROW_VY
+                            : (cham_gy < 0) ? -THROW_VY : 0);
+        }
+        else
+        {
+            /* room throw: with Wren's facing */
+            e_vx[i] = player_face() ? -THROW_VX : THROW_VX;
+            e_vy[i] = THROW_VY;
+        }
         e_cool[i] = 0;
         carried = 0xFF;
         rebuild_crate_list();
         return;
     }
-    pcx = (s16)(player_px() + (PB_W >> 1));
-    pcy = (s16)(player_py() + (PB_H >> 1));
+    if (portal_world)
+    {
+        pcx = cham_cx; /* Wren's chamber center (chamber.h) */
+        pcy = cham_cy;
+    }
+    else
+    {
+        pcx = (s16)(player_px() + (PB_W >> 1));
+        pcy = (s16)(player_py() + (PB_H >> 1));
+    }
     for (i = 0; i < ENT_MAX; i++)
     {
         if (e_type[i] != ET_CRATE || e_st[i] == 2)

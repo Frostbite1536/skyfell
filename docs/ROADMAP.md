@@ -125,13 +125,14 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 
 ### Included Features
 
-- [ ] Chamber room type: Mode 7 BG (128×128 map, 8bpp tiles, VRAM bytes $0000–$7FFF interleaved), dedicated VRAM/CGRAM layout swapped behind a force-blank door transition; HUD switches to sprites (Mode 7 has no BG3)
-- [ ] Rotation math: 256-entry sin/cos LUT (8.8); M7A–D matrix + M7X/M7Y pivot; world data stays fixed, a screen-transform (90° swaps) maps world→screen for all sprites (D-005)
-- [ ] Gravity rule: exiting a chamber portal sets **gravity = −(exit surface outward normal)**; transition = physics frozen, θ eased over ~40 frames, player pinned upright at screen center, then play resumes in the new gravity frame
-- [ ] Physics in gravity-frame: input/movement axes remapped by current orientation; collision queries unchanged (world-space)
+- [x] Chamber room type: Mode 7 BG (128×128 map, 8bpp tiles, VRAM bytes $0000–$7FFF interleaved), dedicated VRAM/CGRAM layout swapped behind a force-blank door transition; HUD switches to sprites (Mode 7 has no BG3). The LIVE map is a WRAM copy (bank $7F, chamram.asm) — the world mutates (D-015)
+- [x] Rotation math: 256-entry sin/cos LUT (8.8); M7A–D matrix + M7X/M7Y pivot; world data stays fixed, a screen-transform (90° swaps) maps world→screen for all sprites (D-005)
+- [x] Gravity rule: exiting a chamber portal sets **gravity = −(exit surface outward normal)**; transition = physics frozen, θ eased over 32 frames, player pinned upright at screen center, then play resumes in the new gravity frame
+- [x] Physics in gravity-frame: input/movement axes remapped by current orientation; collision queries unchanged (world-space); crates fall along the live gravity vector too
 - [x] Gale Drone enemy: floating, **radially symmetric sprite** so rotation never shows a wrong angle (hardware: sprites cannot rotate — INV-HW-004). Leashed floater per D-014; contact damage lands with death/respawn (Phase 3.5)
-- [ ] One complete puzzle chamber: requires two reorientations + a crate to open the exit
-- [ ] Chamber palette discipline: tiles use colors 0–127, sprites 128–255 (INV-HW-006)
+- [x] One complete puzzle chamber: requires two reorientations + a crate to open the exit (D-015 — the pad is in the ceiling; the crate starts on an unreachable ledge)
+- [x] Chamber palette discipline: tiles use colors 0–127, sprites 128–255 (INV-HW-006)
+- [x] (Unplanned, from playtest need) The Rift Gun fires INSIDE the chamber: D-013 controls, aim in the screen frame rotated to world velocity
 
 ### Explicit Exclusions
 
@@ -139,10 +140,10 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 
 ### Success Criteria
 
-- [ ] `test_gravity_cycle.lua`: scripted 4-rotation loop returns player to start cell with gravity=down and **bit-identical** debug state; screenshot at each 90° checked into artifacts
-- [ ] `test_chamber_puzzle.lua`: scripted full solve reaches the exit
-- [ ] Rotation animation holds 60fps (matrix writes are 8 register writes/frame — verify no vblank overrun)
-- [ ] A human (Jeremy) plays it and the spin feels *good* — this gate is subjective on purpose
+- [x] `test_gravity_cycle.lua`: scripted 4-rotation loop returns player to start cell with gravity=down and **bit-identical** debug state; screenshot at each 90° checked into artifacts
+- [x] `test_chamber_puzzle.lua`: scripted full solve reaches the exit
+- [x] Rotation animation holds 60fps (matrix writes are 8 register writes/frame — verify no vblank overrun). dbg_lag==0 asserted across every chamber test; the transit-frame eject and the door-open are cost-spread onto quiet frames (measured by scanline probe)
+- [ ] A human (Jeremy) plays it and the spin feels *good* — this gate is subjective on purpose (JEREMY-INBOX)
 
 ### Risks & Mitigations
 

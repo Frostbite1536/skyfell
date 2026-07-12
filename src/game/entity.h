@@ -17,7 +17,8 @@
 #define ET_DRONE 6  /* Gale Drone: leashed chamber floater (D-014) */
 
 void ent_clear_all(void);
-void ent_wake_all(void);             /* portal changes wake sleeping crates */
+void ent_wake_all(void);             /* portal/gravity changes wake crates */
+extern u8 ent_slept; /* crate-sleep event flag (chamber.c pad probe gate) */
 void ent_room_init(u8 room);         /* clear + this room's authored spawns */
 u8 ent_spawn(u8 type, u16 x, u16 y); /* box top-left px; 0xFF if pool full */
 void ent_set_face(u8 slot, u8 face); /* sentry aim: 0 right, 1 left */
@@ -30,6 +31,10 @@ u8 ent_count(void);
  * except `exclude` (0xFF = none) overlap the INCLUSIVE tile rect? One pass
  * over the live list — the per-tile variant cost measured lag frames. */
 u8 ent_occupies_rect(u16 tx0, u16 ty0, u16 tx1, u16 ty1, u8 exclude);
+
+/* puzzle probe: any crate asleep with box top == ytop, center x in
+ * [x0,x1]? (chamber.c's ceiling pressure pad, D-015) */
+u8 ent_crate_resting(u16 x0, u16 x1, u16 ytop);
 
 /* player coupling (called from player.c):
  *  - clamp_x/clamp_y treat crates as walls for the mover's box; clamp_x

@@ -24,5 +24,8 @@ extern u8 cham_rot;  /* 1 while the rotation tween runs (physics frozen) */
 extern u8 cham_thk;  /* theta>>6: 0..3 quarter-turns (valid at rest) */
 extern s16 cham_cx;  /* Wren's box center, world px */
 extern s16 cham_cy;
+extern s8 cham_gx;   /* gravity unit vector, world coords — chamber crate
+                        physics + carried/drop directions (entity.c) */
+extern s8 cham_gy;
 
 #endif

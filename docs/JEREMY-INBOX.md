@@ -33,15 +33,20 @@ rather I stop pushing overnight, say so and I'll keep commits local.
   back out — the shaft walls are taller than your jump.
 - Phase 3 gate (ROADMAP): "the spin feels *good*" — subjective on purpose, and
   the full loop is now IN YOUR HANDS: the Rift Gun fires inside the chamber
-  (same D-013 controls — R aim-lock, Y blue / X gold, Select recall; aim is
-  what you see on screen). Fire onto the brass strips (all four walls), step
-  through, and the room rotates around you. The spin knob is ROT_STEP in
-  tuning.h (2 = 90° in 32 frames; bigger = snappier). Watch the round drone —
-  it hides during the spin on purpose (sprites can't rotate). Fallback design
-  (instant 90° cut + tumble) stays on the shelf per D-004. To reach the
-  chamber before Phase 3.5's door exists: it's warp room 1 in the TEST ROM
-  (tests do it via the mailbox) — or just tell me and I'll wire a temporary
-  door into room01.
+  (same D-013 controls — R aim-lock, Y blue / X gold, Select recall, A
+  grab/drop; aim is what you see on screen). Fire onto the brass strips (all
+  four walls), step through, and the room rotates around you. The spin knob is
+  ROT_STEP in tuning.h (2 = 90° in 32 frames; bigger = snappier). Watch the
+  round drone — it hides during the spin on purpose (sprites can't rotate).
+  Fallback design (instant 90° cut + tumble) stays on the shelf per D-004.
+  **The chamber is now also the Phase 3 puzzle (D-015)**: the crate sits on a
+  ledge you can't jump to — flip gravity to shake it loose, carry it (A), get
+  gravity UP, and drop it (A) on the green rune pad in the ceiling; the door
+  beside the pad corner slides open — walk in. Two reorientations minimum.
+  In the chamber, A-drop is a gentle straight drop (no throw) on purpose —
+  say the word if you want the full toss back. To reach the chamber before
+  Phase 3.5's door exists: it's warp room 1 in the TEST ROM (tests do it via
+  the mailbox) — or just tell me and I'll wire a temporary door into room01.
 - Milestone A (after Phase 3.5) is **your** go/no-go review — I will not record the
   verdict for you; the demo build + a played-through checklist will be waiting.
 

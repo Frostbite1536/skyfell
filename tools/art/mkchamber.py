@@ -6,7 +6,11 @@ chamber pipeline is this generator (DECISIONS: Phase 3 checkpoint).
 
 Authoring: assets/maps/chamber01.txt — 32x32 metatile ASCII grid, one char =
 one 16x16 metatile = a 2x2 quad of 8x8 tiles, centered at tile (32,32) of
-the 128x128 map (the rest is void). Legend below.
+the 128x128 map (the rest is void). Legend: '.' interior, '#' wall,
+'B' brass (portalable), '=' ledge, 'P' pressure pad, 'D' exit door
+(closed=solid; chamber.c swaps its cells to void when the puzzle solves).
+The ROM map label is cham_rom_map — the LIVE map is a WRAM copy
+(chamram.asm cham_map) because the world mutates.
 
 Outputs into src/data/generated/: chamber.chr (8bpp tiles), chamber.pal
 (colors 0-127 ONLY — sprites own 128-255, INV-HW-006), chamber.map.bin
@@ -99,11 +103,39 @@ def mt_ledge():
     return c
 
 
-# tile 0 = void; then 4 tiles per metatile in this order
+def mt_pad():
+    # pressure pad: recessed rune plate — a resting crate opens the door
+    c = M16(2)
+    c.rect(0, 0, 15, 0, 4)
+    c.rect(0, 15, 15, 15, 1)
+    c.rect(1, 1, 14, 14, 10)
+    c.rect(3, 3, 12, 12, 11)
+    c.rect(6, 6, 9, 9, 12)
+    return c
+
+
+def mt_door():
+    # exit door, closed: brass jambs + dark slab with a center seam.
+    # OPEN = the map cells swap to tile 0 (void) at runtime (chamber.c).
+    c = M16(6)
+    c.rect(2, 0, 13, 15, 2)
+    c.rect(7, 0, 8, 15, 1)
+    c.rect(0, 0, 1, 15, 8)
+    c.rect(14, 0, 15, 15, 8)
+    c.rect(4, 7, 5, 8, 9)
+    c.rect(10, 7, 11, 8, 9)
+    return c
+
+
+# tile 0 = void; then 4 tiles per metatile. Portal tiles 13/14 are PINNED
+# (portal.c hardcodes them) so puzzle metatiles append AFTER: pad 15-18,
+# door 19-22. LEGEND maps each char to its metatile's BASE tile id.
 METAS = [("wall", mt_wall(), COL_SOLID),
          ("brass", mt_brass(), COL_SOLID | MAT_BRASS),
          ("ledge", mt_ledge(), COL_SOLID)]
-LEGEND = {".": None, "#": 0, "B": 1, "=": 2}
+METAS2 = [("pad", mt_pad(), COL_SOLID),
+          ("door", mt_door(), COL_SOLID)]
+LEGEND = {".": None, "#": 1, "B": 5, "=": 9, "P": 15, "D": 19}
 
 
 def t_portal(rim, core):
@@ -133,6 +165,10 @@ def main():
     attrs.append(0)
     tiles.append(t_portal(9, 7))   # 14: gold rift
     attrs.append(0)
+    for _, canvas, attr in METAS2:  # pad 15-18, door 19-22
+        for t in canvas.quads():
+            tiles.append(t)
+            attrs.append(attr)
     attrs += [0] * (256 - len(attrs))
 
     lines = [ln.rstrip("\n") for ln in open(TXT) if ln.strip("\n") != ""]
@@ -141,10 +177,9 @@ def main():
     for my, ln in enumerate(lines):
         assert len(ln) == 32, (my, len(ln))
         for mx, ch in enumerate(ln):
-            mi = LEGEND[ch]
-            if mi is None:
+            base = LEGEND[ch]
+            if base is None:
                 continue
-            base = 1 + mi * 4
             ty, tx = 32 + my * 2, 32 + mx * 2
             m[ty][tx] = base
             m[ty][tx + 1] = base + 1
@@ -182,7 +217,7 @@ def main():
         f.write('cham_chr:\n.incbin "src/data/generated/chamber.chr"\n')
         f.write('cham_chr_end:\n')
         f.write('cham_pal:\n.incbin "src/data/generated/chamber.pal"\n')
-        f.write('cham_map:\n.incbin "src/data/generated/chamber.map.bin"\n')
+        f.write('cham_rom_map:\n.incbin "src/data/generated/chamber.map.bin"\n')
         f.write('cham_att:\n.incbin "src/data/generated/chamber.att.bin"\n')
         f.write(".ends\n")
 
