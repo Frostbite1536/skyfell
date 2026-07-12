@@ -12,6 +12,8 @@
 
 #include <snes.h>
 
+#include "src/core/dbgcmd.h"
+#include "src/core/rng.h"
 #include "src/core/vblank.h"
 
 extern char tilfont, palfont; /* data.asm: Phase 0 placeholder font */
@@ -35,6 +37,15 @@ extern u8 dbg_entn;
 extern u8 dbg_vqovf;   /* +22: vblank-queue overflow mirror (INV-HW-002) */
 extern u8 dbg_roomck;  /* +23 */
 extern u16 dbg_warp;   /* +24: Lua warp mailbox (Phase 1 consumes) */
+extern u16 dbg_vbl_last;  /* +26..+32: vblank.c owns these live */
+extern u16 dbg_vbl_max;
+extern u16 dbg_flags;
+extern u16 dbg_vbl_defer;
+extern u16 dbg_lag;    /* +34: lag_frame_counter mirror */
+extern u16 dbg_cmd;    /* +36..+40: Lua test mailbox (dbgcmd.c) */
+extern u16 dbg_arg0;
+extern u16 dbg_arg1;
+extern u16 dbg_vbl_v;  /* +42: drain-start scanline (vblank.c) */
 #endif
 
 int main(void)
@@ -66,10 +77,10 @@ int main(void)
      * (interrupt.h:227). consoleUpdate() is NOT the answer: it DMAs to a
      * hardcoded VRAM $0800, ignoring consoleSetTextMapPtr. */
 
-    /* vq statics are WRAM garbage until vq_init — init BEFORE the ISR can
-     * see them, then hand the drain to the lib's VBlank ISR. */
-    vq_init();
-    nmiSet(vq_nmi);
+    /* vq statics are WRAM garbage until vq_init — vq_install inits BEFORE
+     * handing the drain to the lib's VBlank ISR. */
+    vq_install();
+    rng_seed(0); /* default "SKYF" seed; tests reseed via the mailbox */
 
 #ifdef TEST_BUILD
     /* Zero the whole block, magic LAST: magic means "valid from here on". */
@@ -87,6 +98,16 @@ int main(void)
     dbg_vqovf = 0;
     dbg_roomck = 0;
     dbg_warp = 0;
+    dbg_vbl_last = 0;
+    dbg_vbl_max = 0;
+    dbg_flags = 0;
+    dbg_vbl_defer = 0;
+    dbg_lag = 0;
+    dbg_cmd = 0;
+    dbg_arg0 = 0;
+    dbg_arg1 = 0;
+    dbg_vbl_v = 0;
+    lag_frame_counter = 0; /* boot/force-blank time is not gameplay lag */
     dbg_magic = 0x51FE;
 #endif
 
@@ -105,13 +126,18 @@ int main(void)
         else
             lvl = (u8)(63 - ph);
         c = ((u16)lvl << 10) | (((u16)(t >> 2) & 0x1F) << 5) | (u16)(31 - lvl);
-        vq_push_cgram(0, c);
+        vq_push_cgram(0, &c, 1);
+
+#ifdef TEST_BUILD
+        dbg_poll(); /* Lua test mailbox (dbgcmd.c) */
+#endif
 
         WaitForVBlank();
         t++;
 #ifdef TEST_BUILD
-        dbg_frame = t;             /* +1 per displayed frame (INV-HW-003) */
-        dbg_vqovf = vq_overflow;   /* INV-HW-002 probe */
+        dbg_frame = t;                      /* +1 per displayed frame (INV-HW-003) */
+        dbg_vqovf = (u8)(dbg_flags & 1);    /* INV-HW-002 probe */
+        dbg_lag = lag_frame_counter;        /* 60fps gate feed */
 #endif
     }
     return 0;

@@ -44,7 +44,7 @@ PYTHON ?= python
 # not just objects, because explicit-prerequisite .ps files survive make's
 # auto-intermediate deletion and would carry their flavor across the swap.
 FLAVOR := $(if $(filter 1,$(TEST)),test,release)
-FLAVORPS = src/main src/core/vblank
+FLAVORPS = src/main src/core/vblank src/core/dbgcmd src/core/rng
 
 flavorcheck:
 	@mkdir -p build

@@ -32,5 +32,15 @@ dbg_vqovf     dsb 1  ; +22 u8   vblank-queue overflow flag (INV-HW-002)
 dbg_roomck    dsb 1  ; +23 u8   room checksum status (INV-ENG-005)
 dbg_warp      dsw 1  ; +24 u16  warp-request mailbox: Lua writes room id +
                      ;          0x8000; game consumes by writing 0 (Phase 1)
-; --- append new fields at +26; never repack (INV-TEST-001) ---
+; --- Phase 1 appends (2026-07-11) ---
+dbg_vbl_last  dsw 1  ; +26 u16  bytes the drain moved last NMI
+dbg_vbl_max   dsw 1  ; +28 u16  high-water of dbg_vbl_last
+dbg_flags     dsw 1  ; +30 u16  bit0 = vblank-queue overflow (dbg_vqovf mirrors)
+dbg_vbl_defer dsw 1  ; +32 u16  cumulative entries deferred to a later NMI
+dbg_lag       dsw 1  ; +34 u16  lag_frame_counter mirror (60fps gate)
+dbg_cmd       dsw 1  ; +36 u16  Lua test mailbox verb (tests/README.md)
+dbg_arg0      dsw 1  ; +38 u16  mailbox arg0
+dbg_arg1      dsw 1  ; +40 u16  mailbox arg1
+dbg_vbl_v     dsw 1  ; +42 u16  scanline where the drain last started work
+; --- append new fields at +44; never repack (INV-TEST-001) ---
 .ENDS

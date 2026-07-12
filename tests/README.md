@@ -26,7 +26,28 @@ Tests run the **real ROM** in MesenCE headless. The invocation proven in Phase 0
 | +22 | u8 | vblank-queue overflow flag (INV-HW-002) |
 | +23 | u8 | room checksum status (INV-ENG-005) |
 | +24 | u16 | warp-request mailbox (Lua writes room id + 0x8000; game consumes) |
-| +26… | — | **append new fields here; never repack** |
+| +26 | u16 | bytes the drain moved last NMI (vblank.c) |
+| +28 | u16 | high-water of +26 |
+| +30 | u16 | flags: bit0 = vblank-queue overflow (+22 mirrors it) |
+| +32 | u16 | cumulative entries the drain deferred to a later NMI |
+| +34 | u16 | lag_frame_counter mirror (60fps gate) |
+| +36 | u16 | test mailbox verb (dbgcmd.c — table below) |
+| +38 | u16 | mailbox arg0 |
+| +40 | u16 | mailbox arg1 |
+| +42 | u16 | scanline where the drain last started work (budget calibration) |
+| +44… | — | **append new fields here; never repack** |
+
+## Test mailbox verbs (`+36`; game acks by writing 0 back)
+
+| Verb | Name | Args |
+|---|---|---|
+| 1 | RESEED | arg0 = seed lo16, arg1 = seed hi16 (0 = default "SKYF") |
+| 2 | VQ_STRESS | arg0 = n entries (≤24), arg1 = base pattern → n live 2-word VRAM pushes at scratch |
+| 3 | VQ_BUDGET | arg0 = forced drain byte budget (0 = back to measured) |
+
+**VRAM test scratch**: word addresses `0x7C00+` are reserved for tests — no
+game system may ever write there (VQ_STRESS lands its patterns there and Lua
+reads them back).
 
 ## Harness helpers (`tests/lua/lib/harness.lua`, ported from prophet)
 
