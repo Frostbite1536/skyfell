@@ -20,4 +20,12 @@ tiles_chr_end:
 tiles_pal:
 .incbin "src/data/generated/tiles.pal"
 
+; Wren's OBJ sheet (tools/art/mkobj.py — 8 frames, name-table layout)
+obj_chr:
+.incbin "src/data/generated/obj.chr"
+obj_chr_end:
+
+obj_pal:
+.incbin "src/data/generated/obj.pal"
+
 .ends

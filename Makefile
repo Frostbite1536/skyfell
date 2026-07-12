@@ -44,7 +44,8 @@ PYTHON ?= python
 # not just objects, because explicit-prerequisite .ps files survive make's
 # auto-intermediate deletion and would carry their flavor across the swap.
 FLAVOR := $(if $(filter 1,$(TEST)),test,release)
-FLAVORPS = src/main src/core/vblank src/core/dbgcmd src/core/rng src/game/room
+FLAVORPS = src/main src/core/vblank src/core/dbgcmd src/core/rng src/game/room \
+           src/game/player
 
 flavorcheck:
 	@mkdir -p build
@@ -75,6 +76,11 @@ GENTILES := $(GEN)/tiles.chr $(GEN)/tiles.pal $(GEN)/tiles.map $(GEN)/tiles.png
 $(GENTILES) &: tools/art/mktiles.py tools/tilesdef.py
 	$(PYTHON) tools/art/mktiles.py
 
+GENOBJ := $(GEN)/obj.chr $(GEN)/obj.pal $(GEN)/obj.png
+
+$(GENOBJ) &: tools/art/mkobj.py tools/art/mktiles.py
+	$(PYTHON) tools/art/mkobj.py
+
 # Rooms: ASCII metatile grid -> Tiled .tmj (mkmaps) -> tmx2snes (D-011) ->
 # baked map/attr binaries + checksum (roomglue, D-012/INV-ENG-005).
 $(GEN)/maps/room01.tmj &: tools/mkmaps.py tools/tilesdef.py assets/maps/room01.txt
@@ -88,7 +94,7 @@ GENROOMS := $(GEN)/rooms.asm $(GEN)/rooms.h
 $(GENROOMS) &: tools/roomglue.py $(GEN)/maps/room01.m16
 	$(PYTHON) tools/roomglue.py
 
-bitmaps: $(GENTILES) $(GENROOMS)
+bitmaps: $(GENTILES) $(GENOBJ) $(GENROOMS)
 
 # rooms.obj: snes_rules collects sources by wildcard at parse time — on a
 # clean tree the generated rooms.asm doesn't exist yet, so append its object
@@ -102,7 +108,7 @@ $(GEN)/rooms.obj: $(GEN)/rooms.asm
 $(ROMNAME).sfc: $(ROOMSOBJ)
 
 # incbin consumers must see fresh binaries/headers
-data.obj: $(GENTILES)
+data.obj: $(GENTILES) $(GENOBJ)
 src/game/room.ps: $(GEN)/rooms.h
 
 clean: cleanBuildRes cleanRom cleanGfx

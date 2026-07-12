@@ -1,7 +1,7 @@
 #include "src/core/dbgcmd.h"
 #include "src/core/rng.h"
 #include "src/core/vblank.h"
-#include "src/game/room.h"
+#include "src/game/player.h"
 
 #ifdef TEST_BUILD
 extern u16 dbg_cmd;  /* dbg.asm +36 */
@@ -42,9 +42,9 @@ void dbg_poll(void)
     else if (c == 3)
         vq_test_budget(dbg_arg0); /* VQ_BUDGET(bytes, 0 = off) */
     else if (c == 4)
-        room_cam_warp(dbg_arg0, dbg_arg1); /* POS_SET(x px, y px) — Unit C
-                                              retargets this at the player;
-                                              camera follows either way */
+        player_warp(dbg_arg0, dbg_arg1); /* POS_SET(x px, y px): place the
+                                            player's box top-left; zeroes
+                                            motion; force-blank camera warp */
     dbg_cmd = 0; /* ack */
 #endif
 }

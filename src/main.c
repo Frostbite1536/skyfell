@@ -1,17 +1,19 @@
-/* RIFT: THE SKYFELL ENGINE — Phase 1 (in progress).
+/* RIFT: THE SKYFELL ENGINE — Phase 1: the platformer core.
  *
- * Unit B state: the metatile room is live — tileset + room01 through the
- * tmx2snes pipeline (D-011/D-012), camera with edge clamp and BG1 seam
- * streaming through the vblank queue (INV-HW-001). Until the player lands
- * (Unit C), the camera free-flies on the d-pad so `make run` can inspect
- * the room; tests drive it through the POS_SET mailbox verb. */
+ * Frame (ARCHITECTURE.md): read pad -> player FSM/physics/collision ->
+ * camera deadzone-follow (streams BG1 seams through the vblank queue,
+ * INV-HW-001) -> OAM shadow -> WaitForVBlank; the NMI drains the queue and
+ * DMAs OAM. Fixed point s32 16.8 / s16 8.8 everywhere (INV-ENG-001);
+ * every knob in src/game/tuning.h. */
 
 #include <snes.h>
 
 #include "src/core/dbgcmd.h"
 #include "src/core/rng.h"
 #include "src/core/vblank.h"
+#include "src/game/player.h"
 #include "src/game/room.h"
+#include "src/game/tuning.h"
 
 #ifdef TEST_BUILD
 /* Debug block at $7E:FF00 — labels in dbg.asm (INV-TEST-001, D-010). WRAM
@@ -49,19 +51,21 @@ int main(void)
 {
     u16 t;
     u16 pad;
-    u16 cx, cy;
 
     setMode(BG_MODE1, 0);
     bgSetDisable(1); /* BG2 parallax comes later */
-    bgSetDisable(2); /* BG3 HUD stub lands with Unit C */
+    bgSetDisable(2); /* BG3 HUD stub comes with the first real HUD need */
 
     /* vq statics are WRAM garbage until vq_init — vq_install inits BEFORE
      * handing the drain to the lib's VBlank ISR. */
     vq_install();
     rng_seed(0); /* default "SKYF" seed; tests reseed via the mailbox */
 
-    /* boot into the gantry hall, camera at the spawn corner (bottom-left) */
-    room_load(0, 0, 288);
+    /* OBJ chr/pal + OAM hide-all under boot force-blank, then the room
+     * (room_load ends with setScreenOn) */
+    player_obj_init();
+    room_load(0, 0, 288); /* camera lands at the spawn corner */
+    player_init(SPAWN_X, SPAWN_Y);
 
 #ifdef TEST_BUILD
     /* Zero the whole block, magic LAST: magic means "valid from here on".
@@ -93,35 +97,19 @@ int main(void)
 #endif
 
     t = 0;
-    cx = room_cam_x();
-    cy = room_cam_y();
     while (1)
     {
-        /* Unit B free camera: d-pad flies 2px/frame (replaced by the player
-         * deadzone-follow in Unit C). room_cam_set clamps + streams seams. */
         pad = padsCurrent(0);
-        if (pad & KEY_RIGHT)
-            cx += 2;
-        if ((pad & KEY_LEFT) && cx >= 2)
-            cx -= 2;
-        if (pad & KEY_DOWN)
-            cy += 2;
-        if ((pad & KEY_UP) && cy >= 2)
-            cy -= 2;
-        room_cam_set(cx, cy);
-        cx = room_cam_x(); /* re-sync with the clamp */
-        cy = room_cam_y();
+        player_update(pad); /* physics + collision + camera follow */
+        player_render();    /* OAM shadow; the lib ISR DMAs it */
 
 #ifdef TEST_BUILD
-        dbg_poll(); /* Lua test mailbox (dbgcmd.c) — may warp the camera */
-        cx = room_cam_x();
-        cy = room_cam_y();
+        dbg_poll(); /* Lua test mailbox (dbgcmd.c) — may warp the player */
         /* room-warp mailbox (+24): Lua writes room id + 0x8000 */
         if (dbg_warp & 0x8000)
         {
-            room_load((u8)(dbg_warp & 0xFF), cx, cy);
-            cx = room_cam_x();
-            cy = room_cam_y();
+            room_load((u8)(dbg_warp & 0xFF), room_cam_x(), room_cam_y());
+            player_warp(SPAWN_X, SPAWN_Y);
             dbg_warp = 0; /* ack */
         }
 #endif

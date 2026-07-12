@@ -1,12 +1,15 @@
--- test_room — the room pipeline + camera streaming (D-012):
---   (a) boot state: checksum valid, corner tile in VRAM
---   (b) LIVE seam streaming: fly the free camera to the bottom-right corner
---       with held d-pad input; the brass pad tiles must have been streamed
---       into the window on the way (no warp, no force-blank)
---   (c) POS_SET warp back to the origin redraws the window whole
--- World facts (assets/maps/room01.txt): tile (0,0)=hull tl (word 0x0001);
--- brass pad at metatile (46,28) -> tile (92,56) = brass tl (word 0x0009),
--- VRAM slot (92&63=28, 56&31=24) -> word addr 0x3000+(24<<5)+28 = 0x331C.
+-- test_room — the room pipeline + camera streaming (D-012), driven by the
+-- real player (Unit C):
+--   (a) boot state: checksum valid
+--   (b) LIVE seam streaming: walk Wren right along the floor (into the pit,
+--       against its far wall); the camera deadzone-follows and must stream
+--       the brass tower into the window on the way (no warp, no force-blank)
+--   (c) POS_SET warp back to spawn redraws the window whole
+-- World facts (assets/maps/room01.txt): brass tower metatile (52,24) ->
+-- tile (104,48) = brass tl (word 0x0009); after walking right the window is
+-- cols 53..116 / rows 32..63, so slot (104&63=40 -> screen1, 48&31=16) ->
+-- word addr 0x3400+(16<<5)+8 = 0x3608. At boot that slot held world col 40
+-- (empty sky) — only live streaming can make it brass.
 -- Stop codes 10..11, 14..19.
 
 H.maskInput()
@@ -14,29 +17,33 @@ H.run(function()
     H.waitAlive(10)
     H.assertEq(H.dbgU8(23), 1, "room checksum", 14)
 
-    -- (b) hold right+down: free camera flies to the clamp corner (768,288)
-    H.padScript(function(f) return { right = true, down = true } end)
-    H.waitUntil(function()
-        return H.dbgU16(44) == 768 and H.dbgU16(46) == 288
-    end, 600, "camera reach clamp corner", 15)
+    -- (b) run right with a full-height jump every 48 frames: clears the
+    -- 32px step block at metatile 26, drops into the pit, jumps out of it
+    -- (apex ~51px > 48px depth), reaches the far pit wall; camera deadzone-
+    -- follows to ~547
+    H.padScript(function(f)
+        return { right = true, b = (f % 48) < 24 }
+    end)
+    H.waitUntil(function() return H.dbgU16(44) >= 500 end, 900,
+                "camera follow player right", 15)
     H.padScript(nil)
-    H.waitFrames(4)
+    H.waitFrames(6)
 
-    -- streamed brass pad tile present (live pushes, never a redraw)
-    H.assertEq(H.vramWord(0x331C), 0x0009, "brass tl streamed", 16)
-    -- queue stayed healthy through ~400 frames of streaming
+    H.assertEq(H.vramWord(0x3608), 0x0009, "brass tower streamed live", 16)
     H.assertEq(H.dbgU8(22), 0, "vq overflow during streaming", 17)
-    H.assertEq(H.dbgU16(34), 0, "lag frames during streaming", 18)
-    H.snap("room_brass_corner")
+    H.assertEq(H.dbgU16(34), 0, "lag frames during walk", 18)
+    H.snap("room_pit_wall")
 
-    -- (c) warp home: full force-blank redraw restores the origin window
-    H.writeU16(DBG_BASE + 38, 0)
-    H.writeU16(DBG_BASE + 40, 0)
-    H.writeU16(DBG_BASE + 36, 4) -- POS_SET(0,0)
+    -- (c) warp home: POS_SET(spawn) — full force-blank redraw + camera clamp
+    H.writeU16(DBG_BASE + 38, 88)
+    H.writeU16(DBG_BASE + 40, 418)
+    H.writeU16(DBG_BASE + 36, 4)
     H.waitUntil(function() return H.dbgU16(36) == 0 end, 60, "warp ack", 11)
-    H.waitFrames(4)
+    H.waitFrames(6)
+    H.assertEq(H.dbgU16(4), 88 * 256, "player x after warp (16.8 lo)", 19)
     H.assertEq(H.vramWord(0x3000), 0x0001, "corner word after warp", 19)
-    H.snap("room_origin")
+    H.assertEq(H.dbgU8(17), 0, "fsm idle on the floor", 19)
+    H.snap("room_spawn")
 
     H.pass()
 end)
