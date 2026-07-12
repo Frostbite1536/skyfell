@@ -23,9 +23,10 @@ extern u16 dbg_fizz;   /* dbg.asm +60 */
 
 #define STRIP 6 /* 48px opening = 6 tiles (GDD) */
 
-extern u16 room01_map[]; /* rooms.asm — the validator reads raw map/attr
-                            directly (no calls in the profiled hot path) */
-extern u16 room01_att[];
+extern u16 room_map[];   /* the LIVE room (chamram.asm, D-016) — the
+                            validator reads raw map/attr directly (no
+                            calls in the profiled hot path) */
+extern u16 room01_att[]; /* shared tileset attrs (roomglue asserts) */
 extern u8 cham_map[];  /* chamber.asm: Mode 7 world (bytes, same 128 stride) */
 extern u16 cham_att[];
 
@@ -378,10 +379,10 @@ static u8 strip_valid(u8 self, u16 sx, u16 sy, u8 orient, u8 self_ent)
         }
         else
         {
-            a = room01_att[room01_map[idx] & 0x3FF];
+            a = room01_att[room_map[idx] & 0x3FF];
             if (ATTR_COL(a) == COL_EMPTY || ATTR_MAT(a) != MAT_BRASS)
                 return 0;
-            a = room01_att[room01_map[(u16)(idx + foff)] & 0x3FF];
+            a = room01_att[room_map[(u16)(idx + foff)] & 0x3FF];
         }
         if (ATTR_COL(a) != COL_EMPTY)
             return 0;

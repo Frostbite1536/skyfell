@@ -157,13 +157,22 @@ u8 ent_count(void)
     return n;
 }
 
-/* room 0's authored spawns (a real .o16 pipeline arrives when rooms
- * multiply — one room doesn't earn it yet) */
+/* per-room authored spawns, hand-tabled by id (D-016: a generated
+ * spawn-from-ASCII table lands with the Zone 1 authoring pass, where
+ * 7 rooms x N entities starts to earn it) */
 void ent_room_init(u8 room)
 {
     u8 s;
     ent_clear_all();
-    (void)room;
+    if (room == 2)
+    {
+        /* room02, the proof room: crate on the floor, sentry by the
+         * right-wall brass column */
+        ent_spawn(ET_CRATE, 160, 450);
+        s = ent_spawn(ET_SENTRY, 800, 448);
+        ent_set_face(s, 1);
+        return;
+    }
     ent_spawn(ET_CRATE, 320, 434);          /* on the floor mid-left */
     s = ent_spawn(ET_SENTRY, 896, 432);     /* right shaft, between the
                                                brass tower and pillar */
@@ -215,8 +224,9 @@ u8 ent_occupies_rect(u16 tx0, u16 ty0, u16 tx1, u16 ty1, u8 exclude)
 
 /* --- room collision for an entity-sized box (same sweep shape as the
  * player's, generalized on w/h) --- */
-extern u16 room01_map[]; /* direct reads — the call chain was profiled lag */
-extern u16 room01_att[];
+extern u16 room_map[];   /* the LIVE room (chamram.asm, D-016) — direct
+                            reads; the call chain was profiled lag */
+extern u16 room01_att[]; /* shared tileset attrs (roomglue asserts) */
 extern u8 cham_map[];
 extern u16 cham_att[];
 
@@ -232,7 +242,7 @@ static u8 solid_at(s16 tx, s16 ty)
     if (portal_world)
         a = cham_att[cham_map[(u16)(((u16)ty << 7) + (u16)tx)]];
     else
-        a = room01_att[room01_map[(u16)(((u16)ty << 7) + (u16)tx)] & 0x3FF];
+        a = room01_att[room_map[(u16)(((u16)ty << 7) + (u16)tx)] & 0x3FF];
     return (u8)(ATTR_COL(a) != COL_EMPTY);
 }
 

@@ -4,9 +4,14 @@
 #include "src/data/generated/rooms.h"
 #include "src/game/portal.h"
 
-extern u16 room01_map[]; /* rooms.asm (generated) — direct label indexing,
-                            never a stored C pointer (tcc816 ROM rule) */
-extern u16 room01_att[];
+extern u16 room_map[];   /* chamram.asm: the LIVE room, WRAM bank $7F —
+                            room_load copies the selected ROM room here so
+                            every reader (and seams.asm) direct-indexes ONE
+                            label (D-016; never a stored C pointer) */
+extern u16 room01_map[]; /* rooms.asm (generated): the ROM originals */
+extern u16 room02_map[];
+extern u16 room01_att[]; /* the SHARED tileset attrs — roomglue asserts
+                            every room's att table is byte-identical */
 extern char tiles_chr, tiles_chr_end, tiles_pal; /* data.asm */
 
 #ifdef TEST_BUILD
@@ -32,7 +37,7 @@ static u16 win_x, win_y;   /* valid VRAM window top-left, tiles */
 static u16 strmbuf[64];
 
 /* seams.asm params — non-static on purpose (the asm reads them by name) */
-u16 sm_src; /* BYTE offset into room01_map */
+u16 sm_src; /* BYTE offset into room_map (the live WRAM copy) */
 u16 sm_dst; /* in-bank $7E BYTE address of the destination */
 u16 sm_cnt; /* seam_mvn: bytes / seam_coln: words */
 extern void seam_mvn(void);  /* contiguous ROM->WRAM block move */
@@ -51,14 +56,14 @@ static u16 map_at(u16 tx, u16 ty)
         if (pw)
             return pw;
     }
-    return room01_map[(u16)(ty << 7) + tx];
+    return room_map[(u16)(ty << 7) + tx];
 }
 
 u16 room_attr_raw(u16 tx, u16 ty)
 {
     if (tx >= rm_w || ty >= rm_h)
         return COL_SOLID; /* out of bounds = solid plain wall */
-    return room01_att[room01_map[(u16)(ty << 7) + tx] & 0x3FF];
+    return room01_att[room_map[(u16)(ty << 7) + tx] & 0x3FF];
 }
 
 u16 room_attr(u16 tx, u16 ty)
@@ -70,7 +75,7 @@ u16 room_attr(u16 tx, u16 ty)
         return 0; /* the opening is walk-through (portal.c owns the plane) */
     if (tx >= rm_w || ty >= rm_h)
         return COL_SOLID;
-    return room01_att[room01_map[(u16)(ty << 7) + tx] & 0x3FF];
+    return room01_att[room_map[(u16)(ty << 7) + tx] & 0x3FF];
 }
 
 u16 room_cam_x(void) { return cam_x; }
@@ -286,10 +291,34 @@ void room_cam_warp(u16 x, u16 y)
 
 void room_load(u8 id, u16 camx, u16 camy)
 {
+    u16 i;
+    u16 n;
+    u16 ck_want;
+
     setScreenOff();
-    cur_room = id; /* one room in Phase 1; the id keys future room tables */
-    rm_w = ROOM01_W;
-    rm_h = ROOM01_H;
+    cur_room = id;
+
+    /* copy the selected ROM room into the LIVE map (D-016: id 1 is the
+     * chamber — main.c routes it before calling here; extend this chain
+     * per authored room, roomglue keys the constants). All rooms are the
+     * D-012 128x64 grid. */
+    n = (u16)(ROOM01_H << 7); /* words */
+    if (id == 2)
+    {
+        for (i = 0; i < n; i++)
+            room_map[i] = room02_map[i];
+        rm_w = ROOM02_W;
+        rm_h = ROOM02_H;
+        ck_want = ROOM02_CKSUM;
+    }
+    else
+    {
+        for (i = 0; i < n; i++)
+            room_map[i] = room01_map[i];
+        rm_w = ROOM01_W;
+        rm_h = ROOM01_H;
+        ck_want = ROOM01_CKSUM;
+    }
     rm_wpx = (u16)(rm_w << 3);
     rm_hpx = (u16)(rm_h << 3);
 
@@ -303,18 +332,19 @@ void room_load(u8 id, u16 camx, u16 camy)
 
 #ifdef TEST_BUILD
     {
-        /* INV-ENG-005: re-sum the ROM data against the converter's checksum */
+        /* INV-ENG-005: re-sum the LIVE copy against the converter's
+         * checksum (also proves the WRAM copy itself) */
         u16 ck = 0;
-        u16 i;
-        u16 n = (u16)(rm_h << 7);
+        n = (u16)(rm_h << 7);
         for (i = 0; i < n; i++)
-            ck += room01_map[i];
+            ck += room_map[i];
         for (i = 0; i < ROOM_ATTR_PAD; i++)
             ck += room01_att[i];
-        dbg_roomck = (ck == ROOM01_CKSUM) ? 1 : 2;
+        dbg_roomck = (ck == ck_want) ? 1 : 2;
         dbg_room = id;
     }
 #endif
+    (void)ck_want;
 
     setScreenOn();
     lag_frame_counter = 0; /* force-blank load time is not gameplay lag */

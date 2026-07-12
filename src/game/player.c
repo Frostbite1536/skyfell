@@ -46,10 +46,10 @@ s16 player_px(void) { return (s16)(px >> 8); }
 s16 player_py(void) { return (s16)(py >> 8); }
 u8 player_face(void) { return face; }
 
-extern u16 room01_map[]; /* rooms.asm — collision reads the map DIRECTLY:
-                            the room_attr call chain cost ~40 scanlines per
-                            frame across ~25 queries (profiled; D-001) */
-extern u16 room01_att[];
+extern u16 room_map[];   /* the LIVE room (chamram.asm, D-016) — collision
+                            reads the map DIRECTLY: the room_attr call chain
+                            cost ~40 scanlines/frame across ~25 queries */
+extern u16 room01_att[]; /* shared tileset attrs (roomglue asserts) */
 
 static u8 solid(s16 tx, s16 ty)
 {
@@ -61,7 +61,7 @@ static u8 solid(s16 tx, s16 ty)
         (u16)ty >= portal_by0 && (u16)ty <= portal_by1 &&
         portal_cell((u16)tx, (u16)ty))
         return 0; /* an open rift is walk-through */
-    a = room01_att[room01_map[(u16)(((u16)ty << 7) + (u16)tx)] & 0x3FF];
+    a = room01_att[room_map[(u16)(((u16)ty << 7) + (u16)tx)] & 0x3FF];
     return (u8)(ATTR_COL(a) != COL_EMPTY);
 }
 

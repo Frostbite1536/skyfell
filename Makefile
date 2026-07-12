@@ -83,15 +83,21 @@ $(GENOBJ) &: tools/art/mkobj.py tools/art/mktiles.py
 
 # Rooms: ASCII metatile grid -> Tiled .tmj (mkmaps) -> tmx2snes (D-011) ->
 # baked map/attr binaries + checksum (roomglue, D-012/INV-ENG-005).
-$(GEN)/maps/room01.tmj &: tools/mkmaps.py tools/tilesdef.py assets/maps/room01.txt
+# Add each authored room to ROOMS (mkmaps/roomglue glob on their own).
+ROOMS := room01 room02
+ROOMTMJ := $(foreach r,$(ROOMS),$(GEN)/maps/$(r).tmj)
+ROOMM16 := $(foreach r,$(ROOMS),$(GEN)/maps/$(r).m16)
+
+$(ROOMTMJ) &: tools/mkmaps.py tools/tilesdef.py \
+		$(foreach r,$(ROOMS),assets/maps/$(r).txt)
 	$(PYTHON) tools/mkmaps.py
 
-$(GEN)/maps/room01.m16 $(GEN)/maps/room01.b16 $(GEN)/maps/room01.t16 &: \
-		$(GEN)/maps/room01.tmj $(GEN)/tiles.map
-	$(TMXCONV) $(GEN)/maps/room01.tmj $(GEN)/tiles.map
+$(GEN)/maps/%.m16 $(GEN)/maps/%.b16 $(GEN)/maps/%.t16 &: \
+		$(GEN)/maps/%.tmj $(GEN)/tiles.map
+	$(TMXCONV) $(GEN)/maps/$*.tmj $(GEN)/tiles.map
 
 GENROOMS := $(GEN)/rooms.asm $(GEN)/rooms.h
-$(GENROOMS) &: tools/roomglue.py $(GEN)/maps/room01.m16
+$(GENROOMS) &: tools/roomglue.py $(ROOMM16)
 	$(PYTHON) tools/roomglue.py
 
 # Phase 3: trig LUT + the Mode 7 chamber (its own generator — tmx2snes

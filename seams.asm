@@ -3,11 +3,13 @@
 ; Seam builders (src/game/room.c) — the profiled hot path dropped to asm per
 ; D-001: tcc816's C build-then-copy cost ~90 scanlines per streamed column;
 ; these fill the vblank queue's staging area (vqdata.asm, $7E:F000) straight
-; from the room map in ROM.
+; from the LIVE room map (chamram.asm room_map, WRAM bank $7F — room_load
+; copies the selected room there, so every room streams through this one
+; label with no per-word indirection; D-016).
 ;
 ; Params are C globals in room.c (bank $7E = the runtime data bank, so
 ; plain absolute addressing reaches them):
-;   sm_src  u16  BYTE offset into room01_map
+;   sm_src  u16  BYTE offset into room_map
 ;   sm_dst  u16  in-bank ($7E) BYTE address of the destination
 ;   sm_cnt  u16  seam_mvn: BYTE count / seam_coln: WORD count
 ; Both are void(void), jsl-called from C, clobber A/X/Y (tcc816 caller-saved).
@@ -21,13 +23,13 @@ seam_mvn:
     rep #$30            ; 16-bit A/X/Y
     lda.w sm_src
     clc
-    adc #room01_map     ; in-bank source address
+    adc #room_map       ; in-bank source address
     tax
     ldy.w sm_dst
     lda.w sm_cnt
     dec a               ; MVN takes count-1
     .db $54, $7E        ; MVN: opcode, DEST bank ($7E = vq_data/WRAM)...
-    .db :room01_map     ; ...SOURCE bank (the room data's ROM bank)
+    .db :room_map       ; ...SOURCE bank ($7F, the live-map WRAM bank)
     ; MVN leaves DBR = $7E, which IS the runtime data bank — no restore
     plp
     rtl
@@ -38,7 +40,7 @@ seam_coln:
     rep #$30
     ldx.w sm_src
     ldy.w sm_dst
--   lda.l room01_map,x
+-   lda.l room_map,x
     sta.w $0000,y
     iny
     iny

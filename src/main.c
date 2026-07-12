@@ -184,7 +184,10 @@ int main(void)
                 bgSetDisable(2);
                 player_obj_base(0x2000);
                 room_load((u8)(dbg_warp & 0xFF), room_cam_x(), room_cam_y());
-                player_warp(SPAWN_X, SPAWN_Y);
+                if ((u8)(dbg_warp & 0xFF) == 2)
+                    player_warp(88, 434); /* room02's floor (D-016 table) */
+                else
+                    player_warp(SPAWN_X, SPAWN_Y);
                 ent_room_init((u8)(dbg_warp & 0xFF));
             }
             dbg_warp = 0; /* ack */
