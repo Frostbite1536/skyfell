@@ -59,6 +59,11 @@
 #define SSHOT_SPD 0x0200   /* 2 px/f sentry shot */
 #define SHOT_BOX 6         /* shots use a 6x6 box */
 
+/* --- the gravity chamber (Phase 3) --- */
+#define ROT_STEP 2       /* theta units/frame: 64 units (90 deg) in 32f */
+#define CHAM_SPAWN_X 512 /* world px, box top-left, on the arena floor */
+#define CHAM_SPAWN_Y 706
+
 /* --- camera --- */
 #define CAM_EASE_X 16 /* max camera px/frame (teleport snap-ease) */
 #define CAM_EASE_Y 8  /* vertical: one BG row stream per frame max — two

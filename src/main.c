@@ -11,11 +11,15 @@
 #include "src/core/dbgcmd.h"
 #include "src/core/rng.h"
 #include "src/core/vblank.h"
+#include "src/game/chamber.h"
 #include "src/game/entity.h"
 #include "src/game/player.h"
 #include "src/game/portal.h"
 #include "src/game/room.h"
 #include "src/game/tuning.h"
+
+u8 game_mode; /* 0 = Mode 1 room, 1 = the Mode 7 chamber (dbgcmd routes
+                 POS_SET by this) */
 
 #ifdef TEST_BUILD
 /* Debug block at $7E:FF00 — labels in dbg.asm (INV-TEST-001, D-010). WRAM
@@ -76,6 +80,7 @@ int main(void)
     /* OBJ chr/pal + OAM hide-all under boot force-blank, then the room
      * (room_load ends with setScreenOn). portal_init BEFORE room_load:
      * the map overlay consults portal state during the window draw. */
+    game_mode = 0;
     player_obj_init();
     portal_init();
     room_load(0, 0, 288); /* camera lands at the spawn corner */
@@ -127,26 +132,53 @@ int main(void)
     while (1)
     {
         pad = padsCurrent(0);
-        player_update(pad); /* physics + collision + camera follow */
+        if (game_mode)
+        {
+            chamber_frame(pad); /* gravity-frame physics + rotation SM */
 #ifdef TEST_BUILD
-        dbg_prof0 = vq_scanline(); /* stage bracket: after player */
+            dbg_prof0 = vq_scanline();
 #endif
-        ent_update();       /* crates, sentries, shots (portal transits) */
-        player_render();    /* OAM shadow; the lib ISR DMAs it */
-        ent_render();
+            chamber_render();
+        }
+        else
+        {
+            player_update(pad); /* physics + collision + camera follow */
+#ifdef TEST_BUILD
+            dbg_prof0 = vq_scanline(); /* stage bracket: after player */
+#endif
+            ent_update();    /* crates, sentries, shots (portal transits) */
+            player_render(); /* OAM shadow; the lib ISR DMAs it */
+            ent_render();
+        }
 #ifdef TEST_BUILD
         dbg_prof1 = vq_scanline(); /* stage bracket: after entities+render */
 #endif
 
 #ifdef TEST_BUILD
         dbg_poll(); /* Lua test mailbox (dbgcmd.c) — may warp the player */
-        /* room-warp mailbox (+24): Lua writes room id + 0x8000 */
+        /* room-warp mailbox (+24): Lua writes room id + 0x8000.
+         * Room 1 = THE CHAMBER (Mode 7); anything else = the gantry hall. */
         if (dbg_warp & 0x8000)
         {
-            portal_init();
-            room_load((u8)(dbg_warp & 0xFF), room_cam_x(), room_cam_y());
-            player_warp(SPAWN_X, SPAWN_Y);
-            ent_room_init((u8)(dbg_warp & 0xFF));
+            if ((u8)(dbg_warp & 0xFF) == 1)
+            {
+                game_mode = 1;
+                chamber_load();
+            }
+            else
+            {
+                game_mode = 0;
+                setScreenOff(); /* PPU regs below need blank (INV-HW-001) */
+                vq_set_m7_on(0);
+                portal_init();
+                setMode(BG_MODE1, 0);
+                bgSetDisable(1);
+                bgSetDisable(2);
+                player_obj_base(0x2000);
+                room_load((u8)(dbg_warp & 0xFF), room_cam_x(), room_cam_y());
+                player_warp(SPAWN_X, SPAWN_Y);
+                ent_room_init((u8)(dbg_warp & 0xFF));
+            }
             dbg_warp = 0; /* ack */
         }
         dbg_mainv = vq_scanline(); /* frame-cost probe: where work ended */

@@ -85,6 +85,8 @@ static u16 vq_budget_ovr; /* if nonzero, the drain uses this instead of the
 #endif
 
 static u16 sh_bg1x, sh_bg1y, sh_bg2x, sh_bg2y;
+static u8 sh_m7on;
+static s16 sh_m7[8]; /* a b c d x y hofs vofs */
 
 void vq_init(void)
 {
@@ -101,6 +103,24 @@ void vq_init(void)
     sh_bg1y = 0;
     sh_bg2x = 0;
     sh_bg2y = 0;
+    sh_m7on = 0;
+}
+
+void vq_set_m7_on(u8 on)
+{
+    sh_m7on = on;
+}
+
+void vq_set_m7(s16 a, s16 b, s16 c, s16 d, s16 x, s16 y, s16 hofs, s16 vofs)
+{
+    sh_m7[0] = a;
+    sh_m7[1] = b;
+    sh_m7[2] = c;
+    sh_m7[3] = d;
+    sh_m7[4] = x;
+    sh_m7[5] = y;
+    sh_m7[6] = hofs;
+    sh_m7[7] = vofs;
 }
 
 void vq_set_scroll(u16 bg1x, u16 bg1y)
@@ -208,14 +228,37 @@ static void vq_nmi(void)
 
     /* scroll shadows first: pairs this frame's streamed tiles with their
      * scroll (BGnVOFS displays +1 line; camera code owns that convention) */
-    REG_BG1HOFS = (u8)sh_bg1x;
-    REG_BG1HOFS = (u8)(sh_bg1x >> 8);
-    REG_BG1VOFS = (u8)sh_bg1y;
-    REG_BG1VOFS = (u8)(sh_bg1y >> 8);
-    REG_BG2HOFS = (u8)sh_bg2x;
-    REG_BG2HOFS = (u8)(sh_bg2x >> 8);
-    REG_BG2VOFS = (u8)sh_bg2y;
-    REG_BG2VOFS = (u8)(sh_bg2y >> 8);
+    if (sh_m7on)
+    {
+        /* Mode 7 chamber: matrix + pivot + scroll, 16 stores, atomic */
+        *(vuint8 *)0x211B = (u8)sh_m7[0];
+        *(vuint8 *)0x211B = (u8)(sh_m7[0] >> 8);
+        *(vuint8 *)0x211C = (u8)sh_m7[1];
+        *(vuint8 *)0x211C = (u8)(sh_m7[1] >> 8);
+        *(vuint8 *)0x211D = (u8)sh_m7[2];
+        *(vuint8 *)0x211D = (u8)(sh_m7[2] >> 8);
+        *(vuint8 *)0x211E = (u8)sh_m7[3];
+        *(vuint8 *)0x211E = (u8)(sh_m7[3] >> 8);
+        *(vuint8 *)0x211F = (u8)sh_m7[4];
+        *(vuint8 *)0x211F = (u8)(sh_m7[4] >> 8);
+        *(vuint8 *)0x2120 = (u8)sh_m7[5];
+        *(vuint8 *)0x2120 = (u8)(sh_m7[5] >> 8);
+        REG_BG1HOFS = (u8)sh_m7[6];
+        REG_BG1HOFS = (u8)(sh_m7[6] >> 8);
+        REG_BG1VOFS = (u8)sh_m7[7];
+        REG_BG1VOFS = (u8)(sh_m7[7] >> 8);
+    }
+    else
+    {
+        REG_BG1HOFS = (u8)sh_bg1x;
+        REG_BG1HOFS = (u8)(sh_bg1x >> 8);
+        REG_BG1VOFS = (u8)sh_bg1y;
+        REG_BG1VOFS = (u8)(sh_bg1y >> 8);
+        REG_BG2HOFS = (u8)sh_bg2x;
+        REG_BG2HOFS = (u8)(sh_bg2x >> 8);
+        REG_BG2VOFS = (u8)sh_bg2y;
+        REG_BG2VOFS = (u8)(sh_bg2y >> 8);
+    }
 
     if (vq_head >= vq_n)
     {

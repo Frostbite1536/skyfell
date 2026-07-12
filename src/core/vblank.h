@@ -43,6 +43,12 @@ void vq_commit_col(u16 vaddr, u16 off, u16 words);
 void vq_set_scroll(u16 bg1x, u16 bg1y);
 void vq_set_scroll_bg2(u16 bg2x, u16 bg2y);
 
+/* Mode 7 shadows (the chamber): matrix A-D (8.8), pivot X/Y + scroll HOFS/
+ * VOFS (13-bit), all latched and written together in the NMI — 16 register
+ * stores, atomic per frame. vq_set_m7_on(0) back in Mode 1 rooms. */
+void vq_set_m7_on(u8 on);
+void vq_set_m7(s16 a, s16 b, s16 c, s16 d, s16 x, s16 y, s16 hofs, s16 vofs);
+
 #ifdef TEST_BUILD
 void vq_test_budget(u16 bytes); /* override the drain's byte budget (0 = off) */
 u16 vq_scanline(void); /* latch + read the current vertical counter (the

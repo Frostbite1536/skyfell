@@ -1,9 +1,12 @@
 #include "src/core/dbgcmd.h"
 #include "src/core/rng.h"
 #include "src/core/vblank.h"
+#include "src/game/chamber.h"
 #include "src/game/entity.h"
 #include "src/game/player.h"
 #include "src/game/portal.h"
+
+extern u8 game_mode; /* main.c: 0 room, 1 chamber */
 
 #ifdef TEST_BUILD
 extern u16 dbg_cmd;    /* dbg.asm +36 */
@@ -45,9 +48,14 @@ void dbg_poll(void)
     else if (c == 3)
         vq_test_budget(dbg_arg0); /* VQ_BUDGET(bytes, 0 = off) */
     else if (c == 4)
-        player_warp(dbg_arg0, dbg_arg1); /* POS_SET(x px, y px): place the
-                                            player's box top-left; zeroes
-                                            motion; force-blank camera warp */
+    {
+        /* POS_SET(x px, y px): place the player's box top-left, zero
+         * motion; routes by mode (room warp is force-blank + camera) */
+        if (game_mode)
+            chamber_warp(dbg_arg0, dbg_arg1);
+        else
+            player_warp(dbg_arg0, dbg_arg1);
+    }
     else if (c == 5)
     {
         /* ENT_SPAWN(arg0 = type | slot-face<<8, arg1 = x_meta | y_meta<<8):
@@ -73,6 +81,8 @@ void dbg_poll(void)
         dbg_ewatch = dbg_arg0; /* WATCH(slot) — entity mirror at +50..+56 */
     else if (c == 8)
         ent_clear_all();
+    else if (c == 9)
+        chamber_set_gravity((u8)dbg_arg0); /* GRAV_SET(0-3) + rotation */
     dbg_cmd = 0; /* ack */
 #endif
 }

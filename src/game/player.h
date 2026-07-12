@@ -13,6 +13,8 @@
 #define PF_FALL 3
 
 void player_obj_init(void);        /* force-blank: OBJ chr/pal + OAM hide-all */
+void player_obj_base(u16 vram_words); /* rebase OBJ chr (rooms $2000; the
+                                         Mode 7 chamber $4000) + hide-all */
 void player_init(u16 x, u16 y);    /* place at box top-left (px), zero motion */
 void player_warp(u16 x, u16 y);    /* player_init + force-blank camera warp */
 void player_update(u16 pad);       /* one frame: input, physics, collision, camera */

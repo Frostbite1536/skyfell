@@ -45,7 +45,7 @@ PYTHON ?= python
 # auto-intermediate deletion and would carry their flavor across the swap.
 FLAVOR := $(if $(filter 1,$(TEST)),test,release)
 FLAVORPS = src/main src/core/vblank src/core/dbgcmd src/core/rng src/game/room \
-           src/game/player src/game/entity src/game/portal
+           src/game/player src/game/entity src/game/portal src/game/chamber
 
 flavorcheck:
 	@mkdir -p build
@@ -94,7 +94,17 @@ GENROOMS := $(GEN)/rooms.asm $(GEN)/rooms.h
 $(GENROOMS) &: tools/roomglue.py $(GEN)/maps/room01.m16
 	$(PYTHON) tools/roomglue.py
 
-bitmaps: $(GENTILES) $(GENOBJ) $(GENROOMS)
+# Phase 3: trig LUT + the Mode 7 chamber (its own generator — tmx2snes
+# doesn't speak Mode 7's byte-planar world; DECISIONS Phase 3 checkpoint)
+GENLUT := $(GEN)/lut.asm
+$(GENLUT): tools/mklut.py
+	$(PYTHON) tools/mklut.py
+
+GENCHAM := $(GEN)/chamber.asm $(GEN)/chamber.h
+$(GENCHAM) &: tools/art/mkchamber.py tools/art/mktiles.py assets/maps/chamber01.txt
+	$(PYTHON) tools/art/mkchamber.py
+
+bitmaps: $(GENTILES) $(GENOBJ) $(GENROOMS) $(GENLUT) $(GENCHAM)
 
 # rooms.obj: snes_rules collects sources by wildcard at parse time — on a
 # clean tree the generated rooms.asm doesn't exist yet, so append its object
@@ -107,9 +117,24 @@ endif
 $(GEN)/rooms.obj: $(GEN)/rooms.asm
 $(ROMNAME).sfc: $(ROOMSOBJ)
 
+LUTOBJ := $(GEN)/lut.obj
+ifeq ($(filter $(LUTOBJ),$(OFILES)),)
+OFILES += $(LUTOBJ)
+endif
+$(GEN)/lut.obj: $(GEN)/lut.asm
+$(ROMNAME).sfc: $(LUTOBJ)
+
+CHAMOBJ := $(GEN)/chamber.obj
+ifeq ($(filter $(CHAMOBJ),$(OFILES)),)
+OFILES += $(CHAMOBJ)
+endif
+$(GEN)/chamber.obj: $(GEN)/chamber.asm
+$(ROMNAME).sfc: $(CHAMOBJ)
+
 # incbin consumers must see fresh binaries/headers
 data.obj: $(GENTILES) $(GENOBJ)
 src/game/room.ps: $(GEN)/rooms.h
+src/game/chamber.ps: $(GEN)/chamber.h
 
 # snes_rules tracks NO header dependencies — a tuning.h edit left a stale
 # player.obj in the ROM once (identical goldens exposed it). Coarse but

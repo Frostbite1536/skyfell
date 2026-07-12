@@ -90,15 +90,14 @@ static u8 solid_col(s16 tx, s16 y)
     return 0;
 }
 
-void player_obj_init(void)
+/* Rebase the OBJ character data (force-blank only): rooms keep it at word
+ * $2000; the Mode 7 chamber owns words $0000-$3FFF, so it rebases to $4000.
+ * OBSEL name base = words>>13; sizes 16x16 small / 32x32 large. */
+void player_obj_base(u16 vram_words)
 {
     u16 i;
-    /* OBSEL: OBJ char base word $2000 (8K-word steps -> 0x01), sizes
-     * 16x16 small / 32x32 large (we use small). Boot runs force-blank, so
-     * the direct PPU writes are legal (INV-HW-001). */
-    REG_OBSEL = 0x01 | OBJ_SIZE16_L32;
-    dmaCopyVram((u8 *)&obj_chr, 0x2000, (u16)(&obj_chr_end - &obj_chr));
-    dmaCopyCGram((u8 *)&obj_pal, 128, 32); /* OBJ palette 0 */
+    REG_OBSEL = (u8)((vram_words >> 13) | OBJ_SIZE16_L32);
+    dmaCopyVram((u8 *)&obj_chr, vram_words, (u16)(&obj_chr_end - &obj_chr));
 
     /* hide all 128 sprites (y below the field), high table all-small/x8=0 */
     for (i = 0; i < 512; i += 4)
@@ -110,6 +109,14 @@ void player_obj_init(void)
     }
     for (i = 512; i < 544; i++)
         oamMemory[i] = 0;
+}
+
+void player_obj_init(void)
+{
+    player_obj_base(0x2000);
+    dmaCopyCGram((u8 *)&obj_pal, 128, 32); /* OBJ palette 0 (once: CGRAM
+                                              128+ survives chamber loads,
+                                              INV-HW-006) */
 }
 
 void player_init(u16 x, u16 y)
