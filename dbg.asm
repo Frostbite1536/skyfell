@@ -42,5 +42,7 @@ dbg_cmd       dsw 1  ; +36 u16  Lua test mailbox verb (tests/README.md)
 dbg_arg0      dsw 1  ; +38 u16  mailbox arg0
 dbg_arg1      dsw 1  ; +40 u16  mailbox arg1
 dbg_vbl_v     dsw 1  ; +42 u16  scanline where the drain last started work
-; --- append new fields at +44; never repack (INV-TEST-001) ---
+dbg_camx      dsw 1  ; +44 u16  camera x px (room.c)
+dbg_camy      dsw 1  ; +46 u16  camera y px (room.c)
+; --- append new fields at +48; never repack (INV-TEST-001) ---
 .ENDS

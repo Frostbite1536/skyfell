@@ -1,7 +1,7 @@
--- test_boot — Phase 0 gate: the ROM boots, the TEST debug block is alive at
--- $7E:FF00 (magic 0x51FE, D-010), the frame counter advances 1/frame
--- (INV-HW-003), and the backdrop color cycle proves the vblank-queue stub is
--- draining CGRAM writes (INV-HW-001).
+-- test_boot — the ROM comes alive: debug magic (D-010), frame counter
+-- advancing 1/frame (INV-HW-003), room 0 loaded with a VALID checksum
+-- (INV-ENG-005), vblank queue healthy (INV-HW-002), map window in VRAM.
+-- Stop codes 10..17 (skipping 12/13 per the harness convention).
 
 H.maskInput() -- host keyboard must never reach a deterministic run
 
@@ -19,18 +19,15 @@ H.run(function()
         H.fail(string.format("frame counter delta %d over 10 frames (want ~10, +/-2)", d), 11)
     end
 
-    -- vblank-queue stub proof: the backdrop (CGRAM entry 0) is cycling, and
-    -- the queue never overflowed (+22, INV-HW-002). main.c's green channel
-    -- steps every 4 frames, so 20 frames apart can never alias.
-    H.assertEq(H.dbgU8(22), 0, "vq overflow flag @ +22", 15)
-    if emu.memType.snesCgRam ~= nil then
-        local c1 = H.cgramWord(0)
-        H.waitFrames(20)
-        local c2 = H.cgramWord(0)
-        if c1 == c2 then
-            H.fail(string.format("backdrop not cycling: CGRAM[0] stuck at 0x%04X", c1), 14)
-        end
-    end
+    -- room 0 loaded, checksum validated by the ROM itself (room.c)
+    H.assertEq(H.dbgU8(18), 0, "room id @ +18", 14)
+    H.assertEq(H.dbgU8(23), 1, "room checksum status @ +23", 15)
+
+    -- vblank queue healthy through boot + steady state
+    H.assertEq(H.dbgU8(22), 0, "vq overflow flag @ +22", 16)
+
+    -- the map window is real: world tile (0,0) is the hull corner (tile 1)
+    H.assertEq(H.vramWord(0x3000), 0x0001, "map corner word @ $3000", 17)
 
     H.snap("boot")
     H.pass()

@@ -155,12 +155,6 @@ u8 vq_push_cgram(u8 color, const u16 *src, u8 count)
     return vq_push(VQ_KIND_CGRAM, color, src, count);
 }
 
-/* The lib's default nmi_handler uploads the text console's WRAM buffer when
- * dirty; nmiSet(vq_nmi) displaces it, so we chain it (Phase 0 lesson —
- * consoleUpdate() is NOT the answer: hardcoded VRAM $0800). REMOVE this
- * chain when the Phase 1 game screen retires the boot console. */
-extern void consoleVblank(void);
-
 /* NMI drain. Called by the pvsneslib VBlank ISR with a relocated direct page
  * (interrupt.h), so tcc's imaginary registers in the interrupted main thread
  * are safe. Runs on EVERY NMI; only touches the queue's PPU targets when the
@@ -173,8 +167,6 @@ static void vq_nmi(void)
     u16 budget;
     u16 cost;
     u16 drained;
-
-    consoleVblank(); /* boot console only — see the extern above */
 
     if (!vblank_flag)
         return; /* lag frame: main may be mid-push — don't drain */

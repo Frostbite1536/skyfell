@@ -44,7 +44,7 @@ PYTHON ?= python
 # not just objects, because explicit-prerequisite .ps files survive make's
 # auto-intermediate deletion and would carry their flavor across the swap.
 FLAVOR := $(if $(filter 1,$(TEST)),test,release)
-FLAVORPS = src/main src/core/vblank src/core/dbgcmd src/core/rng
+FLAVORPS = src/main src/core/vblank src/core/dbgcmd src/core/rng src/game/room
 
 flavorcheck:
 	@mkdir -p build
@@ -67,19 +67,43 @@ test:
 run: all
 	"$(MESEN)" build/$(ROMNAME).sfc &
 
-# Phase 0 font: pvsneslib's example font converted by gfx4snes — a placeholder
-# until skyfell's own font lands (Phase 1 HUD). Converted beside the copied
-# PNG so outputs land in the gitignored $(GEN). Grouped target (&:) needs
+# Phase 1 art is generated SNES-native by deterministic scripts (prophet's
+# pattern — no image tools in the build loop). Grouped targets (&:) need
 # make >= 4.3 (MSYS2 ships 4.4.1).
-$(GEN)/pvsneslibfont.pic $(GEN)/pvsneslibfont.pal &: assets/fonts/pvsneslibfont.png
-	@mkdir -p $(GEN)
-	@cp $< $(GEN)/pvsneslibfont.png
-	$(GFXCONV) -s 8 -o 16 -u 16 -p -e 0 -i $(GEN)/pvsneslibfont.png
+GENTILES := $(GEN)/tiles.chr $(GEN)/tiles.pal $(GEN)/tiles.map $(GEN)/tiles.png
 
-bitmaps: $(GEN)/pvsneslibfont.pic
+$(GENTILES) &: tools/art/mktiles.py tools/tilesdef.py
+	$(PYTHON) tools/art/mktiles.py
 
-# incbin consumer must see fresh binaries
-data.obj: $(GEN)/pvsneslibfont.pic $(GEN)/pvsneslibfont.pal
+# Rooms: ASCII metatile grid -> Tiled .tmj (mkmaps) -> tmx2snes (D-011) ->
+# baked map/attr binaries + checksum (roomglue, D-012/INV-ENG-005).
+$(GEN)/maps/room01.tmj &: tools/mkmaps.py tools/tilesdef.py assets/maps/room01.txt
+	$(PYTHON) tools/mkmaps.py
+
+$(GEN)/maps/room01.m16 $(GEN)/maps/room01.b16 $(GEN)/maps/room01.t16 &: \
+		$(GEN)/maps/room01.tmj $(GEN)/tiles.map
+	$(TMXCONV) $(GEN)/maps/room01.tmj $(GEN)/tiles.map
+
+GENROOMS := $(GEN)/rooms.asm $(GEN)/rooms.h
+$(GENROOMS) &: tools/roomglue.py $(GEN)/maps/room01.m16
+	$(PYTHON) tools/roomglue.py
+
+bitmaps: $(GENTILES) $(GENROOMS)
+
+# rooms.obj: snes_rules collects sources by wildcard at parse time — on a
+# clean tree the generated rooms.asm doesn't exist yet, so append its object
+# (guarded against double-link) AND pin it as an .sfc prerequisite (the
+# prereq list was captured when snes_rules was parsed). Prophet's pattern.
+ROOMSOBJ := $(GEN)/rooms.obj
+ifeq ($(filter $(ROOMSOBJ),$(OFILES)),)
+OFILES += $(ROOMSOBJ)
+endif
+$(GEN)/rooms.obj: $(GEN)/rooms.asm
+$(ROMNAME).sfc: $(ROOMSOBJ)
+
+# incbin consumers must see fresh binaries/headers
+data.obj: $(GENTILES)
+src/game/room.ps: $(GEN)/rooms.h
 
 clean: cleanBuildRes cleanRom cleanGfx
 	@rm -rf $(GEN) build artifacts

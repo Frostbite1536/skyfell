@@ -35,7 +35,9 @@ Tests run the **real ROM** in MesenCE headless. The invocation proven in Phase 0
 | +38 | u16 | mailbox arg0 |
 | +40 | u16 | mailbox arg1 |
 | +42 | u16 | scanline where the drain last started work (budget calibration) |
-| +44… | — | **append new fields here; never repack** |
+| +44 | u16 | camera x px (room.c) |
+| +46 | u16 | camera y px (room.c) |
+| +48… | — | **append new fields here; never repack** |
 
 ## Test mailbox verbs (`+36`; game acks by writing 0 back)
 
@@ -44,6 +46,7 @@ Tests run the **real ROM** in MesenCE headless. The invocation proven in Phase 0
 | 1 | RESEED | arg0 = seed lo16, arg1 = seed hi16 (0 = default "SKYF") |
 | 2 | VQ_STRESS | arg0 = n entries (≤24), arg1 = base pattern → n live 2-word VRAM pushes at scratch |
 | 3 | VQ_BUDGET | arg0 = forced drain byte budget (0 = back to measured) |
+| 4 | POS_SET | arg0 = x px, arg1 = y px — force-blank camera warp (player position once Unit C lands; camera follows) |
 
 **VRAM test scratch**: word addresses `0x7C00+` are reserved for tests — no
 game system may ever write there (VQ_STRESS lands its patterns there and Lua

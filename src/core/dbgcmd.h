@@ -5,6 +5,7 @@
  *   2 VQ_STRESS arg0=n entries, arg1=base pattern — n live 2-word VRAM
  *               pushes at test-scratch word addr 0x7C00+2i
  *   3 VQ_BUDGET arg0=bytes (0 = back to the measured budget)
+ *   4 POS_SET   arg0=x px, arg1=y px — camera warp (player pos from Unit C)
  * The game acks by writing 0 back to dbg_cmd.
  * (The room-warp request is its own mailbox at +24 — room.c consumes it.) */
 #ifndef SKYFELL_CORE_DBGCMD_H

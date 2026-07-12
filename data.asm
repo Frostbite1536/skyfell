@@ -12,10 +12,12 @@
 
 .section ".rodata1" superfree
 
-tilfont:
-.incbin "src/data/generated/pvsneslibfont.pic"
+; Phase 1 BG tileset (tools/art/mktiles.py — deterministic generated art)
+tiles_chr:
+.incbin "src/data/generated/tiles.chr"
+tiles_chr_end:
 
-palfont:
-.incbin "src/data/generated/pvsneslibfont.pal"
+tiles_pal:
+.incbin "src/data/generated/tiles.pal"
 
 .ends
