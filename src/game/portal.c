@@ -1,5 +1,6 @@
 #include "src/game/portal.h"
 
+#include "src/core/vblank.h"
 #include "src/game/entity.h"
 #include "src/game/room.h"
 #include "src/game/tuning.h"

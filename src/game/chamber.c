@@ -38,6 +38,9 @@ static u8 fsm;
 static u8 theta;        /* screen rotation angle, 0..255 */
 static u8 theta_tgt;
 static u8 tp_cool;      /* portal re-entry cooldown (the chamber player) */
+static u8 aiming;       /* R held (reticle shows, movement locked, D-013) */
+static u8 aim;          /* 8-way SCREEN direction: 0 E,1 NE,..,7 SE */
+static u8 held_y, held_x, held_sel; /* fire/recall edge detectors */
 
 /* exported to entity.c's render + main.c's freeze gate (chamber.h) */
 u8 cham_rot;  /* physics frozen while easing (was the `rotating` static) */
@@ -52,6 +55,15 @@ static const s8 t_x[4] = {1, 0, -1, 0};
 static const s8 t_y[4] = {0, 1, 0, -1};
 /* screen angle that puts each gravity at the screen bottom */
 static const u8 theta_of[4] = {0, 192, 128, 64};
+
+/* 8-way aim -> SCREEN-frame shot velocity + reticle offset (player.c's
+ * tables; file-scope static const only — the .data placement trap) */
+static const s16 aim_vx[8] = {SHOT_SPD, SHOT_SPD, 0, -SHOT_SPD,
+                              -SHOT_SPD, -SHOT_SPD, 0, SHOT_SPD};
+static const s16 aim_vy[8] = {0, -SHOT_SPD, -SHOT_SPD, -SHOT_SPD,
+                              0, SHOT_SPD, SHOT_SPD, SHOT_SPD};
+static const s8 ret_dx[8] = {20, 14, 0, -14, -20, -14, 0, 14};
+static const s8 ret_dy[8] = {0, -14, -20, -14, 0, 14, 20, 14};
 
 /* box extent along world axes: upright for vertical gravity, sideways for
  * horizontal (Wren lies along the wall he stands on) */
@@ -106,6 +118,24 @@ static s16 mpick(s8 m, s16 v)
     if (m < 0)
         return (s16)(-v);
     return 0;
+}
+
+/* spawn a portal shot at Wren's box center. The aim is a SCREEN direction
+ * (what the player sees) — rotate it into the world through the gravity
+ * frame basis: screen x+ = +tangent, screen y+ = +gravity, the exact
+ * mapping the movement physics uses. */
+static void cham_fire(u8 type)
+{
+    u8 s;
+    s16 wx = (s16)(mpick(t_x[grav], aim_vx[aim]) +
+                   mpick(g_x[grav], aim_vy[aim]));
+    s16 wy = (s16)(mpick(t_y[grav], aim_vx[aim]) +
+                   mpick(g_y[grav], aim_vy[aim]));
+    s = ent_spawn(type,
+                  (u16)((s16)(cpx >> 8) + (box_w() >> 1) - (SHOT_BOX >> 1)),
+                  (u16)((s16)(cpy >> 8) + (box_h() >> 1) - (SHOT_BOX >> 1)));
+    if (s != 0xFF)
+        ent_set_vel(s, wx, wy);
 }
 
 static void matrix_apply(void)
@@ -227,6 +257,11 @@ void chamber_load(void)
     jheld = 0;
     face = 0;
     anim = 0;
+    aiming = 0;
+    aim = 0;
+    held_y = 0;
+    held_x = 0;
+    held_sel = 0;
     fsm = PF_FALL;
     chamber_warp(CHAM_SPAWN_X, CHAM_SPAWN_Y);
     vq_set_m7_on(1);
@@ -279,15 +314,17 @@ void chamber_frame(u16 pad)
         return;
     }
 
-    /* --- input in the GRAVITY FRAME: left/right run along the tangent --- */
-    if (pad & KEY_RIGHT)
+    /* --- input in the GRAVITY FRAME: left/right run along the tangent
+     * (aim-lock: while R is held the d-pad ONLY aims, D-013) --- */
+    aiming = (u8)((pad & KEY_R) ? 1 : 0);
+    if (!aiming && (pad & KEY_RIGHT))
     {
         tv += P_WALK_ACC;
         if (tv > P_WALK_MAX)
             tv = P_WALK_MAX;
         face = 0;
     }
-    else if (pad & KEY_LEFT)
+    else if (!aiming && (pad & KEY_LEFT))
     {
         tv -= P_WALK_ACC;
         if (tv < -P_WALK_MAX)
@@ -432,6 +469,67 @@ void chamber_frame(u16 pad)
     else if (coyote)
         coyote--;
 
+    /* --- the Rift Gun (D-013: Y blue, X gold, Select recall; aim is
+     * 8-way in the SCREEN frame — cham_fire rotates it into the world) --- */
+    if (pad & KEY_R)
+    {
+        if (pad & KEY_RIGHT)
+        {
+            if (pad & KEY_UP)
+                aim = 1;
+            else if (pad & KEY_DOWN)
+                aim = 7;
+            else
+                aim = 0;
+        }
+        else if (pad & KEY_LEFT)
+        {
+            if (pad & KEY_UP)
+                aim = 3;
+            else if (pad & KEY_DOWN)
+                aim = 5;
+            else
+                aim = 4;
+        }
+        else if (pad & KEY_UP)
+            aim = 2;
+        else if (pad & KEY_DOWN)
+            aim = 6;
+        if (aim == 0 || aim == 1 || aim == 7)
+            face = 0; /* facing follows a horizontal-ish aim */
+        else if (aim >= 3 && aim <= 5)
+            face = 1;
+    }
+    else
+        aim = face ? 4 : 0; /* unlocked: aim rides the facing */
+
+    if (pad & KEY_SELECT)
+    {
+        if (!held_sel)
+            portal_clear(); /* recall both */
+        held_sel = 1;
+    }
+    else
+        held_sel = 0;
+
+    if (pad & KEY_Y)
+    {
+        if (!held_y)
+            cham_fire(ET_SHOT_B);
+        held_y = 1;
+    }
+    else
+        held_y = 0;
+    if (pad & KEY_X)
+    {
+        if (!held_x)
+            cham_fire(ET_SHOT_G);
+        held_x = 1;
+    }
+    else
+        held_x = 0;
+    /* A grab/throw arrives with chamber crates (the puzzle unit) */
+
     fsm = grounded ? ((tv != 0) ? PF_RUN : PF_IDLE) : ((gv < 0) ? PF_JUMP : PF_FALL);
     anim++;
     matrix_apply();
@@ -469,5 +567,16 @@ void chamber_render(void)
     oamMemory[5] = 112;
     oamMemory[6] = (u8)(32 + (f << 1));
     oamMemory[7] = attr;
-    oamMemory[73] = 0xF0; /* no reticle in the chamber (yet) */
+
+    /* aim reticle (OAM 18, tile 76) around the pinned sprite — the aim is
+     * a screen direction, so no transform needed (player.c's offsets) */
+    if (aiming && !cham_rot)
+    {
+        oamMemory[72] = (u8)(120 + 2 + ret_dx[aim] - 5);
+        oamMemory[73] = (u8)(96 + 14 + ret_dy[aim] - 5);
+        oamMemory[74] = 76;
+        oamMemory[75] = 0x20;
+    }
+    else
+        oamMemory[73] = 0xF0;
 }

@@ -31,9 +31,17 @@ rather I stop pushing overnight, say so and I'll keep commits local.
   walkway, walk right across the (now shorter) brass tower's top, drop in.
   Pre-place a portal pair (gold on the floor pad BEFORE you drop) to get
   back out — the shaft walls are taller than your jump.
-- Phase 3 gate (ROADMAP): "the spin feels *good*" — subjective on purpose. Chamber
-  rotation duration/easing knobs land in tuning.h; fallback design (instant 90° cut +
-  tumble) stays on the shelf per D-004.
+- Phase 3 gate (ROADMAP): "the spin feels *good*" — subjective on purpose, and
+  the full loop is now IN YOUR HANDS: the Rift Gun fires inside the chamber
+  (same D-013 controls — R aim-lock, Y blue / X gold, Select recall; aim is
+  what you see on screen). Fire onto the brass strips (all four walls), step
+  through, and the room rotates around you. The spin knob is ROT_STEP in
+  tuning.h (2 = 90° in 32 frames; bigger = snappier). Watch the round drone —
+  it hides during the spin on purpose (sprites can't rotate). Fallback design
+  (instant 90° cut + tumble) stays on the shelf per D-004. To reach the
+  chamber before Phase 3.5's door exists: it's warp room 1 in the TEST ROM
+  (tests do it via the mailbox) — or just tell me and I'll wire a temporary
+  door into room01.
 - Milestone A (after Phase 3.5) is **your** go/no-go review — I will not record the
   verdict for you; the demo build + a played-through checklist will be waiting.
 
