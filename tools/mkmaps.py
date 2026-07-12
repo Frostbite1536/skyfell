@@ -103,8 +103,9 @@ def convert(txt_path):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    srcs = sorted(glob.glob(os.path.join(MAPS, "*.txt")))
-    assert srcs, "no assets/maps/*.txt found"
+    # room grids only — chamber*.txt belongs to mkchamber.py (Mode 7 world)
+    srcs = sorted(glob.glob(os.path.join(MAPS, "room*.txt")))
+    assert srcs, "no assets/maps/room*.txt found"
     for s in srcs:
         convert(s)
 

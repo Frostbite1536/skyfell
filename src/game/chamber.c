@@ -38,6 +38,7 @@ static u8 fsm;
 static u8 theta;        /* screen rotation angle, 0..255 */
 static u8 theta_tgt;
 static u8 rotating;     /* physics frozen while easing */
+static u8 tp_cool;      /* portal re-entry cooldown (the chamber player) */
 
 /* gravity unit vector G and tangent T = (Gy, -Gx) per gravity state */
 static const s8 g_x[4] = {0, -1, 0, 1};
@@ -63,6 +64,10 @@ static u8 csolid(s16 tx, s16 ty)
 {
     if ((u16)tx >= 128 || (u16)ty >= 128)
         return 1;
+    if (portal_any && (u16)tx >= portal_bx0 && (u16)tx <= portal_bx1 &&
+        (u16)ty >= portal_by0 && (u16)ty <= portal_by1 &&
+        portal_cell((u16)tx, (u16)ty))
+        return 0; /* an open rift is walk-through */
     return (u8)((u8)cham_att[cham_map[(u16)(((u16)ty << 7) + (u16)tx)]] != 0);
 }
 
@@ -107,9 +112,47 @@ static void matrix_apply(void)
     vq_set_m7(cs, sn, (s16)(-sn), cs, cx, cy, (s16)(cx - 128), (s16)(cy - 112));
 }
 
+/* RAW solidity — ignores open portals: the gravity-change eject must pull
+ * the body fully out of walls even where a portal hole currently sits
+ * (the hole closes on recall; a body left inside is entombed — the bug
+ * that buried Wren 17px into the floor) */
+static u8 craw_box(s16 x, s16 y, u8 w, u8 h)
+{
+    s16 tx, ty;
+    s16 tx1 = (s16)(x + w - 1) >> 3;
+    s16 ty1 = (s16)(y + h - 1) >> 3;
+    for (ty = y >> 3; ty <= ty1; ty++)
+        for (tx = x >> 3; tx <= tx1; tx++)
+        {
+            if ((u16)tx >= 128 || (u16)ty >= 128)
+                return 1;
+            if ((u8)cham_att[cham_map[(u16)(((u16)ty << 7) + (u16)tx)]])
+                return 1;
+        }
+    return 0;
+}
+
 void chamber_set_gravity(u8 g)
 {
+    /* re-anchor the box around its CENTER: the w/h swap for horizontal
+     * gravities must not teleport the body into a wall */
+    u8 ow = box_w();
+    u8 oh = box_h();
+    s16 cx = (s16)((s16)(cpx >> 8) + (ow >> 1));
+    s16 cy = (s16)((s16)(cpy >> 8) + (oh >> 1));
+    s16 x, y;
+    u8 k;
     grav = (u8)(g & 3);
+    x = (s16)(cx - (box_w() >> 1));
+    y = (s16)(cy - (box_h() >> 1));
+    /* eject against the new gravity until clear of RAW solids (<=24px) */
+    for (k = 0; k < 24 && craw_box(x, y, box_w(), box_h()); k++)
+    {
+        x = (s16)(x - g_x[grav]);
+        y = (s16)(y - g_y[grav]);
+    }
+    cpx = (s32)x << 8;
+    cpy = (s32)y << 8;
     theta_tgt = theta_of[grav];
     if (theta != theta_tgt)
         rotating = 1; /* physics freeze; ease in chamber_frame */
@@ -118,6 +161,8 @@ void chamber_set_gravity(u8 g)
     grounded = 0;
 #ifdef TEST_BUILD
     dbg_grav = grav;
+    dbg_px = cpx;
+    dbg_py = cpy;
 #endif
 }
 
@@ -138,6 +183,7 @@ void chamber_load(void)
 
     setScreenOff();
     portal_init();
+    portal_world = 1; /* the validator/render read the chamber world */
     ent_clear_all();
 
     setMode(BG_MODE7, 0);
@@ -161,6 +207,7 @@ void chamber_load(void)
     theta = 0;
     theta_tgt = 0;
     rotating = 0;
+    tp_cool = 0;
     coyote = 0;
     jbuf = 0;
     jheld = 0;
@@ -283,8 +330,18 @@ void chamber_frame(u16 pad)
     wvx = (s16)(mpick(t_x[grav], tv) + mpick(g_x[grav], gv));
     wvy = (s16)(mpick(t_y[grav], tv) + mpick(g_y[grav], gv));
 
+    portal_cool(&tp_cool);
+
     /* --- X sweep --- */
     cpx += wvx;
+    if (portal_check(0, &cpx, &cpy, &wvx, &wvy, &tp_cool, w, h, 0xFF))
+    {
+        /* THE RULE: gravity = -(exit outward normal) — same encoding */
+        chamber_set_gravity(portal_last_exit_or);
+        matrix_apply();
+        anim++;
+        return;
+    }
     x = (s16)(cpx >> 8);
     y = (s16)(cpy >> 8);
     if (wvx > 0)
@@ -310,6 +367,13 @@ void chamber_frame(u16 pad)
 
     /* --- Y sweep --- */
     cpy += wvy;
+    if (portal_check(1, &cpx, &cpy, &wvx, &wvy, &tp_cool, w, h, 0xFF))
+    {
+        chamber_set_gravity(portal_last_exit_or);
+        matrix_apply();
+        anim++;
+        return;
+    }
     x = (s16)(cpx >> 8);
     y = (s16)(cpy >> 8);
     if (wvy > 0)

@@ -83,6 +83,7 @@ int main(void)
     game_mode = 0;
     player_obj_init();
     portal_init();
+    portal_world = 0;
     room_load(0, 0, 288); /* camera lands at the spawn corner */
     player_init(SPAWN_X, SPAWN_Y);
     ent_room_init(0);
@@ -171,6 +172,7 @@ int main(void)
                 setScreenOff(); /* PPU regs below need blank (INV-HW-001) */
                 vq_set_m7_on(0);
                 portal_init();
+                portal_world = 0;
                 setMode(BG_MODE1, 0);
                 bgSetDisable(1);
                 bgSetDisable(2);

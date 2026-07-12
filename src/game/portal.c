@@ -25,6 +25,14 @@ extern u16 dbg_fizz;   /* dbg.asm +60 */
 extern u16 room01_map[]; /* rooms.asm — the validator reads raw map/attr
                             directly (no calls in the profiled hot path) */
 extern u16 room01_att[];
+extern u8 cham_map[];  /* chamber.asm: Mode 7 world (bytes, same 128 stride) */
+extern u16 cham_att[];
+
+u8 portal_world;         /* 0 = Mode 1 room, 1 = the chamber (map source) */
+u8 portal_last_exit_or;  /* outward normal of the last EXIT portal — the
+                            chamber's gravity rule reads it after a transit
+                            (gravity = -(exit normal), which is the same
+                            encoding: up-exit => gravity down, etc.) */
 
 /* --- state --- */
 static u8 p_on[2];
@@ -42,6 +50,8 @@ u8 portal_any;      /* p_on[0]|p_on[1] — GLOBAL on purpose: room.c's per-tile
  * paying a portal_cell call cost ~60 scanlines per ordinary frame
  * (measured); 4 compares against these kill it for queries anywhere else */
 u16 portal_bx0, portal_bx1, portal_by0, portal_by1;
+static u8 m7buf[STRIP]; /* chamber refresh staging — FILE scope (tcc816
+                           stack/function-static array caution) */
 
 static void rebbox(void)
 {
@@ -166,6 +176,7 @@ void portal_init(void)
     p_ty[0] = 0;
     p_ty[1] = 0;
     p_any = 0;
+    portal_last_exit_or = 0;
     rebbox();
 #ifdef TEST_BUILD
     dbg_mirror();
@@ -253,6 +264,21 @@ u16 portal_map_word(u16 tx, u16 ty)
 /* refresh a portal's BG cells (place/remove) through the vblank queue */
 static void refresh(u8 c)
 {
+    if (portal_world)
+    {
+        /* the chamber: Mode 7 map bytes, tile 13 blue / 14 gold when on,
+         * the raw world byte when cleared; VRAM word addr == tile index */
+        u8 k;
+        u16 idx = (u16)((p_ty[c] << 7) + p_tx[c]);
+        u8 hz = horiz(p_or[c]);
+        for (k = 0; k < STRIP; k++)
+        {
+            m7buf[k] = p_on[c] ? (u8)(13 + c)
+                              : cham_map[(u16)(idx + (hz ? k : (u16)(k << 7)))];
+        }
+        vq_push_m7map(idx, m7buf, STRIP, (u8)(hz ? 0 : 1));
+        return;
+    }
     if (horiz(p_or[c]))
         room_refresh_strip(p_tx[c], p_ty[c], STRIP, 0);
     else
@@ -301,9 +327,10 @@ static u8 strip_valid(u8 self, u16 sx, u16 sy, u8 orient, u8 self_ent)
     s16 foff;      /* front cell = strip cell + this map-index offset */
     u16 rx0, ry0, rx1, ry1; /* strip+front union rect */
 
-    /* conservative bounds: the room border is always solid hull, so a
-     * valid strip never touches it and every +-1 neighbor stays in range */
-    if (sx < 1 || sy < 1 || x1 > 126 || y1 > 62)
+    /* conservative bounds: both worlds keep solid borders, so a valid
+     * strip never touches the edge and every +-1 neighbor stays in range
+     * (room: 128x64 tiles; chamber: 128x128) */
+    if (sx < 1 || sy < 1 || x1 > 126 || y1 > (u16)(portal_world ? 126 : 62))
         return 0;
 
     if (orient == 0)
@@ -318,10 +345,20 @@ static u8 strip_valid(u8 self, u16 sx, u16 sy, u8 orient, u8 self_ent)
     idx = (u16)((sy << 7) + sx);
     for (k = 0; k < STRIP; k++)
     {
-        a = room01_att[room01_map[idx] & 0x3FF];
-        if (ATTR_COL(a) == COL_EMPTY || ATTR_MAT(a) != MAT_BRASS)
-            return 0;
-        a = room01_att[room01_map[(u16)(idx + foff)] & 0x3FF];
+        if (portal_world)
+        {
+            a = cham_att[cham_map[idx]];
+            if (ATTR_COL(a) == COL_EMPTY || ATTR_MAT(a) != MAT_BRASS)
+                return 0;
+            a = cham_att[cham_map[(u16)(idx + foff)]];
+        }
+        else
+        {
+            a = room01_att[room01_map[idx] & 0x3FF];
+            if (ATTR_COL(a) == COL_EMPTY || ATTR_MAT(a) != MAT_BRASS)
+                return 0;
+            a = room01_att[room01_map[(u16)(idx + foff)] & 0x3FF];
+        }
         if (ATTR_COL(a) != COL_EMPTY)
             return 0;
         idx = (u16)(idx + (hz ? 1 : 128));
@@ -446,7 +483,13 @@ u8 portal_check(u8 axis, s32 *mx, s32 *my, s16 *mvx, s16 *mvy, u8 *cool,
 
     if (*cool)
         return 0;
-    if (!p_on[0] || !p_on[1])
+    /* two SEPARATE ifs — `!p_on[0] || !p_on[1]` miscompiled under tcc816
+     * (a phantom transit fired with both portals OFF; the forensics probe
+     * 2026-07-12 caught p_on=={0,0} inside the success path — the same
+     * codegen-trap family as prophet's u8 switch) */
+    if (!p_on[0])
+        return 0;
+    if (!p_on[1])
         return 0;
 
     cx = (s16)((s16)(*mx >> 8) + (w >> 1));
@@ -454,6 +497,8 @@ u8 portal_check(u8 axis, s32 *mx, s32 *my, s16 *mvx, s16 *mvy, u8 *cool,
 
     for (c = 0; c < 2; c++)
     {
+        if (!p_on[c])
+            return 0; /* belt: never transit a cleared portal */
         in_or = p_or[c];
         zx0 = (s16)(p_tx[c] << 3);
         zy0 = (s16)(p_ty[c] << 3);
@@ -603,6 +648,7 @@ u8 portal_check(u8 axis, s32 *mx, s32 *my, s16 *mvx, s16 *mvy, u8 *cool,
         *mvx = nvx;
         *mvy = nvy;
         *cool = TP_COOLDOWN;
+        portal_last_exit_or = out_or;
 #ifdef TEST_BUILD
         dbg_tpcount++;
 #endif

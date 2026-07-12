@@ -39,7 +39,7 @@ PAL = [
     0x1E2A26,  # 10 accent dark
     0x35514A,  # 11 accent green
     0xC7D4E8,  # 12 bright edge
-    0x804060,  # 13 spare
+    0x78E0FF,  # 13 rift cyan (blue portal)
     0x442222,  # 14 spare
     0x000000,  # 15 spare
 ]
@@ -106,6 +106,21 @@ METAS = [("wall", mt_wall(), COL_SOLID),
 LEGEND = {".": None, "#": 0, "B": 1, "=": 2}
 
 
+def t_portal(rim, core):
+    """full-cell rift glow: ids 13 (blue) / 14 (gold), attr 0 (walk-through);
+    portal.c overwrites wall map bytes with these when a portal opens"""
+    t = [[0] * 8 for _ in range(8)]
+    for y in range(8):
+        for x in range(8):
+            if x in (0, 7) or y in (0, 7):
+                t[y][x] = rim
+            else:
+                t[y][x] = core
+    t[3][3] = 12
+    t[4][4] = 12
+    return t
+
+
 def main():
     os.makedirs(GEN, exist_ok=True)
     tiles = [[[0] * 8 for _ in range(8)]]  # tile 0: void
@@ -114,6 +129,10 @@ def main():
         for t in canvas.quads():
             tiles.append(t)
             attrs.append(attr)
+    tiles.append(t_portal(13, 2))  # 13: blue rift (cyan rim, dark core)
+    attrs.append(0)
+    tiles.append(t_portal(9, 7))   # 14: gold rift
+    attrs.append(0)
     attrs += [0] * (256 - len(attrs))
 
     lines = [ln.rstrip("\n") for ln in open(TXT) if ln.strip("\n") != ""]

@@ -26,6 +26,11 @@ u8 portal_try_place(u8 color, u16 tx, u16 ty, u8 orient, u8 self_ent);
  * per-tile paths MUST check it before calling (a byte load vs a tcc816
  * call — the difference was measured lag frames). */
 extern u8 portal_any;                /* 1 while any portal is placed */
+extern u8 portal_world;              /* 0 room / 1 chamber: map source for
+                                        the validator + render (set by the
+                                        mode switch, with portal_init) */
+extern u8 portal_last_exit_or;       /* outward normal of the last exit —
+                                        the chamber gravity rule */
 /* combined bounding box over both strips (tile coords, inclusive; empty box
  * = x0>x1) — collision hot paths gate on these 4 compares INLINE before any
  * call (the with-portals overlay cost ~60 scanlines/frame without it) */

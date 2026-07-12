@@ -64,6 +64,8 @@ extern u16 dbg_vbl_v;     /* dbg.asm +42 — scanline where the drain started */
 #define VQ_KIND_SEQ 0
 #define VQ_KIND_COL 1
 #define VQ_KIND_CGRAM 2
+#define VQ_KIND_M7SEQ 3 /* Mode 7 map bytes, +1 tile   ($2118, VMAIN $00) */
+#define VQ_KIND_M7COL 4 /* Mode 7 map bytes, +128 tiles ($2118, VMAIN $02) */
 
 extern u16 vq_data[]; /* vqdata.asm */
 
@@ -210,6 +212,35 @@ u8 vq_push_cgram(u8 color, const u16 *src, u8 count)
     return vq_push(VQ_KIND_CGRAM, color, src, count);
 }
 
+/* Mode 7 map bytes (the chamber's portal overlay): tile-index address,
+ * byte payload packed into the staging words. col=1 walks +128 (a vertical
+ * strip in one DMA). */
+u8 vq_push_m7map(u16 tile_addr, const u8 *src, u8 bytes, u8 col)
+{
+    u16 words = (u16)((bytes + 1) >> 1);
+    u8 i;
+    u8 *dst;
+    u16 o;
+    if (vq_n >= VQ_MAX_ENT || (u16)(vq_off + words) > VQ_MAX_WORDS)
+    {
+#ifdef TEST_BUILD
+        dbg_flags |= 1;
+#endif
+        return 0;
+    }
+    o = vq_off;
+    dst = (u8 *)&vq_data[o];
+    for (i = 0; i < bytes; i++)
+        dst[i] = src[i];
+    vq_addr[vq_n] = tile_addr;
+    vq_src[vq_n] = (u16)(VQ_DATA_ADDR + (o << 1));
+    vq_len[vq_n] = bytes;
+    vq_kind[vq_n] = col ? VQ_KIND_M7COL : VQ_KIND_M7SEQ;
+    vq_off = (u16)(o + words);
+    vq_n++;
+    return 1;
+}
+
 /* NMI drain. Called by the pvsneslib VBlank ISR with a relocated direct page
  * (interrupt.h), so tcc's imaginary registers in the interrupted main thread
  * are safe. Runs on EVERY NMI; only touches the queue's PPU targets when the
@@ -318,6 +349,15 @@ static void vq_nmi(void)
             REG_CGADD = (u8)a;
             REG_DMAP6 = 0x00; /* one register, write once */
             REG_BBAD6 = 0x22; /* CGDATA */
+        }
+        else if (vq_kind[e] >= VQ_KIND_M7SEQ)
+        {
+            /* Mode 7 map bytes: low VRAM byte only, inc-on-low; $02 = +128
+             * (a vertical strip of tiles in one DMA) */
+            REG_VMAIN = (vq_kind[e] == VQ_KIND_M7COL) ? 0x02 : 0x00;
+            REG_VMADDLH = a;
+            REG_DMAP6 = 0x00; /* one register */
+            REG_BBAD6 = 0x18; /* VMDATAL */
         }
         else
         {

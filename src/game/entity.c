@@ -183,17 +183,22 @@ u8 ent_occupies_rect(u16 tx0, u16 ty0, u16 tx1, u16 ty1, u8 exclude)
  * player's, generalized on w/h) --- */
 extern u16 room01_map[]; /* direct reads — the call chain was profiled lag */
 extern u16 room01_att[];
+extern u8 cham_map[];
+extern u16 cham_att[];
 
 static u8 solid_at(s16 tx, s16 ty)
 {
     u16 a;
-    if ((u16)tx >= 128 || (u16)ty >= 64)
+    if ((u16)tx >= 128 || (u16)ty >= (u16)(portal_world ? 128 : 64))
         return 1;
     if (portal_any && (u16)tx >= portal_bx0 && (u16)tx <= portal_bx1 &&
         (u16)ty >= portal_by0 && (u16)ty <= portal_by1 &&
         portal_cell((u16)tx, (u16)ty))
         return 0;
-    a = room01_att[room01_map[(u16)(((u16)ty << 7) + (u16)tx)] & 0x3FF];
+    if (portal_world)
+        a = cham_att[cham_map[(u16)(((u16)ty << 7) + (u16)tx)]];
+    else
+        a = room01_att[room01_map[(u16)(((u16)ty << 7) + (u16)tx)] & 0x3FF];
     return (u8)(ATTR_COL(a) != COL_EMPTY);
 }
 
