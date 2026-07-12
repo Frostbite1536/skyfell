@@ -11,7 +11,9 @@
 #include "src/core/dbgcmd.h"
 #include "src/core/rng.h"
 #include "src/core/vblank.h"
+#include "src/game/entity.h"
 #include "src/game/player.h"
+#include "src/game/portal.h"
 #include "src/game/room.h"
 #include "src/game/tuning.h"
 
@@ -45,6 +47,14 @@ extern u16 dbg_arg1;
 extern u16 dbg_vbl_v;  /* +42: drain-start scanline (vblank.c) */
 extern u16 dbg_camx;   /* +44/+46: room.c owns live */
 extern u16 dbg_camy;
+extern u16 dbg_tpcount; /* +48..+60: Phase 2 (portal.c/entity.c own live) */
+extern u16 dbg_e0x;
+extern u16 dbg_e0y;
+extern u16 dbg_e0vx;
+extern u16 dbg_e0vy;
+extern u16 dbg_ewatch;
+extern u16 dbg_fizz;
+extern u16 dbg_mainv;
 #endif
 
 int main(void)
@@ -62,10 +72,13 @@ int main(void)
     rng_seed(0); /* default "SKYF" seed; tests reseed via the mailbox */
 
     /* OBJ chr/pal + OAM hide-all under boot force-blank, then the room
-     * (room_load ends with setScreenOn) */
+     * (room_load ends with setScreenOn). portal_init BEFORE room_load:
+     * the map overlay consults portal state during the window draw. */
     player_obj_init();
+    portal_init();
     room_load(0, 0, 288); /* camera lands at the spawn corner */
     player_init(SPAWN_X, SPAWN_Y);
+    ent_room_init(0);
 
 #ifdef TEST_BUILD
     /* Zero the whole block, magic LAST: magic means "valid from here on".
@@ -92,26 +105,43 @@ int main(void)
     dbg_arg0 = 0;
     dbg_arg1 = 0;
     dbg_vbl_v = 0;
-    lag_frame_counter = 0; /* boot/force-blank time is not gameplay lag */
+    dbg_tpcount = 0;
+    dbg_e0x = 0;
+    dbg_e0y = 0;
+    dbg_e0vx = 0;
+    dbg_e0vy = 0;
+    dbg_ewatch = 0x00FF; /* no slot watched */
+    dbg_fizz = 0;
+    dbg_mainv = 0;
     dbg_magic = 0x51FE;
 #endif
+
+    /* absorb the partially-elapsed boot frame so lag==0 means the LIVE loop
+     * holds 60fps from its first full frame */
+    WaitForVBlank();
+    lag_frame_counter = 0;
 
     t = 0;
     while (1)
     {
         pad = padsCurrent(0);
         player_update(pad); /* physics + collision + camera follow */
+        ent_update();       /* crates, sentries, shots (portal transits) */
         player_render();    /* OAM shadow; the lib ISR DMAs it */
+        ent_render();
 
 #ifdef TEST_BUILD
         dbg_poll(); /* Lua test mailbox (dbgcmd.c) — may warp the player */
         /* room-warp mailbox (+24): Lua writes room id + 0x8000 */
         if (dbg_warp & 0x8000)
         {
+            portal_init();
             room_load((u8)(dbg_warp & 0xFF), room_cam_x(), room_cam_y());
             player_warp(SPAWN_X, SPAWN_Y);
+            ent_room_init((u8)(dbg_warp & 0xFF));
             dbg_warp = 0; /* ack */
         }
+        dbg_mainv = vq_scanline(); /* frame-cost probe: where work ended */
 #endif
 
         WaitForVBlank();

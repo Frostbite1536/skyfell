@@ -45,7 +45,7 @@ PYTHON ?= python
 # auto-intermediate deletion and would carry their flavor across the swap.
 FLAVOR := $(if $(filter 1,$(TEST)),test,release)
 FLAVORPS = src/main src/core/vblank src/core/dbgcmd src/core/rng src/game/room \
-           src/game/player
+           src/game/player src/game/entity src/game/portal
 
 flavorcheck:
 	@mkdir -p build

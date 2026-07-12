@@ -2,6 +2,7 @@
 
 #include "src/core/vblank.h"
 #include "src/data/generated/rooms.h"
+#include "src/game/portal.h"
 
 extern u16 room01_map[]; /* rooms.asm (generated) — direct label indexing,
                             never a stored C pointer (tcc816 ROM rule) */
@@ -25,21 +26,46 @@ static u16 cam_x, cam_y;   /* camera top-left, px, clamped to the room */
 static u16 win_x, win_y;   /* valid VRAM window top-left, tiles */
 
 /* Streaming build buffer — static, not stack: main-thread only (the NMI
- * drain never calls into room.c), fully rewritten before every use. */
-static u16 strmbuf[32];
+ * drain never calls into room.c), fully rewritten before every use. 64
+ * words: a full row builds slot-ordered in one pass, pushed as two 32s.
+ * (redraw_fb still uses it; live seams write vq_data directly via asm.) */
+static u16 strmbuf[64];
+
+/* seams.asm params — non-static on purpose (the asm reads them by name) */
+u16 sm_src; /* BYTE offset into room01_map */
+u16 sm_dst; /* in-bank $7E BYTE address of the destination */
+u16 sm_cnt; /* seam_mvn: bytes / seam_coln: words */
+extern void seam_mvn(void);  /* contiguous ROM->WRAM block move */
+extern void seam_coln(void); /* strided column gather (128-word stride) */
+#define VQ_DATA_BYTE 0xF000  /* vq_data's in-bank address (vqdata.asm) */
 
 static u16 map_at(u16 tx, u16 ty)
 {
     /* every room is 128 tiles wide (the D-012 authoring grid), so the row
-     * stride is a shift — revisit when a second room size ever exists */
+     * stride is a shift — revisit when a second room size ever exists.
+     * Portal overlay first — behind the inline portal_any gate (hot path:
+     * seam streaming calls this per word). */
+    if (portal_any)
+    {
+        u16 pw = portal_map_word(tx, ty);
+        if (pw)
+            return pw;
+    }
     return room01_map[(u16)(ty << 7) + tx];
+}
+
+u16 room_attr_raw(u16 tx, u16 ty)
+{
+    if (tx >= rm_w || ty >= rm_h)
+        return COL_SOLID; /* out of bounds = solid plain wall */
+    return room01_att[room01_map[(u16)(ty << 7) + tx] & 0x3FF];
 }
 
 u16 room_attr(u16 tx, u16 ty)
 {
-    if (tx >= rm_w || ty >= rm_h)
-        return COL_SOLID; /* out of bounds = solid plain wall */
-    return room01_att[map_at(tx, ty) & 0x3FF];
+    if (portal_any && portal_cell(tx, ty))
+        return 0; /* the opening is walk-through (portal.c owns the plane) */
+    return room_attr_raw(tx, ty);
 }
 
 u16 room_cam_x(void) { return cam_x; }
@@ -74,29 +100,65 @@ static u16 col_addr(u16 wx)
 }
 
 /* Stream one full world column (32 window rows, slot-ordered so the +32
- * stride DMA writes rows 0..31 in one push). */
+ * stride DMA writes rows 0..31 in one push). The gather runs in ASSEMBLY
+ * straight into the queue's staging area (zero copies) — profiling showed
+ * the C build-then-copy version cost ~90 scanlines and tipped seam frames
+ * over the 60fps cliff (D-001: asm after the profiler fingers it). The
+ * slot-wrap is hoisted into two strided runs. */
 static void push_col(u16 wx)
 {
-    u8 my;
     u8 s = (u8)(win_y & 31);
-    for (my = 0; my < 32; my++)
-        strmbuf[my] = map_at(wx, (u16)(win_y + (u8)((u8)(my - s) & 31)));
-    vq_push_vram_col(col_addr(wx), strmbuf, 32);
+    u16 off = vq_stage(32, 1);
+    u16 i0;
+    if (off == 0xFFFF)
+        return; /* frame full: the overflow flag is the signal (INV-HW-002) */
+    i0 = (u16)(((u16)(win_y - s) << 7) + wx);
+    /* run 1: slots s..31 = window rows win_y..win_y+(31-s) */
+    sm_src = (u16)((u16)(i0 + ((u16)s << 7)) << 1);
+    sm_dst = (u16)(VQ_DATA_BYTE + ((u16)(off + s) << 1));
+    sm_cnt = (u16)(32 - s);
+    seam_coln();
+    if (s)
+    {
+        /* run 2: slots 0..s-1 = window rows win_y+(32-s).. (wrap) */
+        sm_src = (u16)((u16)(i0 + 4096) << 1);
+        sm_dst = (u16)(VQ_DATA_BYTE + (off << 1));
+        sm_cnt = s;
+        seam_coln();
+    }
+    if (portal_any)
+        portal_fix_col(wx, &vq_data[off], win_y);
+    vq_commit_col(col_addr(wx), off, 32);
 }
 
 /* Stream one full world row (64 window columns = 2 seq pushes, one per
- * 32x32 screen). */
+ * 32x32 screen). Contiguous in ROM, so the whole row is 1-2 MVN block
+ * moves into the staging area. */
 static void push_row(u16 wy)
 {
-    u8 mx;
     u8 s = (u8)(win_x & 63);
     u16 row = (u16)((wy & 31) << 5);
-    for (mx = 0; mx < 32; mx++)
-        strmbuf[mx] = map_at((u16)(win_x + (u8)((u8)(mx - s) & 63)), wy);
-    vq_push_vram_seq((u16)(VRAM_BG1_MAP + row), strmbuf, 32);
-    for (mx = 32; mx < 64; mx++)
-        strmbuf[(u8)(mx - 32)] = map_at((u16)(win_x + (u8)((u8)(mx - s) & 63)), wy);
-    vq_push_vram_seq((u16)(VRAM_BG1_MAP + 0x400 + row), strmbuf, 32);
+    u16 off = vq_stage(64, 2);
+    u16 i0;
+    if (off == 0xFFFF)
+        return;
+    i0 = (u16)((wy << 7) + win_x - s);
+    /* run 1: slots s..63 from world cols win_x.. */
+    sm_src = (u16)((u16)(i0 + s) << 1);
+    sm_dst = (u16)(VQ_DATA_BYTE + ((u16)(off + s) << 1));
+    sm_cnt = (u16)((u16)(64 - s) << 1); /* bytes */
+    seam_mvn();
+    if (s)
+    {
+        sm_src = (u16)((u16)(i0 + 64) << 1);
+        sm_dst = (u16)(VQ_DATA_BYTE + (off << 1));
+        sm_cnt = (u16)((u16)s << 1);
+        seam_mvn();
+    }
+    if (portal_any)
+        portal_fix_row(wy, &vq_data[off], win_x);
+    vq_commit_seq((u16)(VRAM_BG1_MAP + row), off, 32);
+    vq_commit_seq((u16)(VRAM_BG1_MAP + 0x400 + row), (u16)(off + 32), 32);
 }
 
 /* Full window redraw — force-blank ONLY (fb_vram_write is not a queue
@@ -151,6 +213,29 @@ static void place_cam(u16 x, u16 y)
     win_y = win_want_y();
     redraw_fb();
     cam_apply();
+}
+
+/* re-push cells whose overlay changed (portal place/remove). One 1-word
+ * push per in-window cell (<=6 per call; the drain defers as needed). */
+void room_refresh_strip(u16 tx, u16 ty, u8 len, u8 vertical)
+{
+    u8 k;
+    u16 x, y, w;
+    u16 mx, my;
+    for (k = 0; k < len; k++)
+    {
+        x = vertical ? tx : (u16)(tx + k);
+        y = vertical ? (u16)(ty + k) : ty;
+        if (x < win_x || x >= (u16)(win_x + 64) || y < win_y ||
+            y >= (u16)(win_y + 32))
+            continue;
+        mx = x & 63;
+        my = y & 31;
+        w = map_at(x, y);
+        vq_push_vram_seq((u16)(VRAM_BG1_MAP + ((mx & 32) << 5) + (my << 5) +
+                               (mx & 31)),
+                         &w, 1);
+    }
 }
 
 void room_cam_set(u16 x, u16 y)

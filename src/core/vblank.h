@@ -28,6 +28,16 @@ u8 vq_push_vram_col(u16 vaddr, const u16 *src, u8 words);  /* +32 word stride:
                                        one tilemap column inside a screen    */
 u8 vq_push_cgram(u8 color, const u16 *src, u8 count);      /* CGRAM colors   */
 
+/* Zero-copy staging (the seam streamers' path — profiling showed the C
+ * build-then-copy cost ~90 scanlines per column): reserve `words` of
+ * payload for `entries` future commits, fill vq_data[off..] directly (the
+ * asm seam builders write it), then commit each DMA run over the staged
+ * range. Returns 0xFFFF (+ the overflow flag) when the frame is full. */
+extern u16 vq_data[]; /* vqdata.asm, $7E:F000 */
+u16 vq_stage(u16 words, u8 entries);
+void vq_commit_seq(u16 vaddr, u16 off, u16 words);
+void vq_commit_col(u16 vaddr, u16 off, u16 words);
+
 /* Scroll shadows — applied atomically at the top of every drained NMI, so a
  * frame's streamed columns always pair with their scroll. */
 void vq_set_scroll(u16 bg1x, u16 bg1y);
@@ -35,6 +45,8 @@ void vq_set_scroll_bg2(u16 bg2x, u16 bg2y);
 
 #ifdef TEST_BUILD
 void vq_test_budget(u16 bytes); /* override the drain's byte budget (0 = off) */
+u16 vq_scanline(void); /* latch + read the current vertical counter (the
+                          main loop's frame-cost probe, dbg_mainv +62) */
 #endif
 
 /* Force-blank helpers — direct writes, legal ONLY under REG_INIDISP=0x80

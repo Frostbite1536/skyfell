@@ -44,5 +44,15 @@ dbg_arg1      dsw 1  ; +40 u16  mailbox arg1
 dbg_vbl_v     dsw 1  ; +42 u16  scanline where the drain last started work
 dbg_camx      dsw 1  ; +44 u16  camera x px (room.c)
 dbg_camy      dsw 1  ; +46 u16  camera y px (room.c)
-; --- append new fields at +48; never repack (INV-TEST-001) ---
+; --- Phase 2 appends (2026-07-12) ---
+dbg_tpcount   dsw 1  ; +48 u16  teleports since boot (portal.c)
+dbg_e0x       dsw 1  ; +50 u16  watched entity x px (entity.c, verb 7)
+dbg_e0y       dsw 1  ; +52 u16  watched entity y px
+dbg_e0vx      dsw 1  ; +54 u16  watched entity vx (8.8 bits)
+dbg_e0vy      dsw 1  ; +56 u16  watched entity vy (8.8 bits)
+dbg_ewatch    dsw 1  ; +58 u16  watched slot | state<<8 (bit15 = live)
+dbg_fizz      dsw 1  ; +60 u16  portal placement rejections (portal.c)
+dbg_mainv     dsw 1  ; +62 u16  scanline where the main loop finished its
+                     ;          frame work (frame-cost probe; <225 = healthy)
+; --- append new fields at +64; never repack (INV-TEST-001) ---
 .ENDS

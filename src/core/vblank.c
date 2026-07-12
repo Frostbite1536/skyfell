@@ -145,6 +145,41 @@ u8 vq_push_vram_seq(u16 vaddr, const u16 *src, u16 words)
     return vq_push(VQ_KIND_SEQ, vaddr, src, words);
 }
 
+u16 vq_stage(u16 words, u8 entries)
+{
+    u16 o;
+    if ((u8)(vq_n + entries) > VQ_MAX_ENT ||
+        (u16)(vq_off + words) > VQ_MAX_WORDS)
+    {
+#ifdef TEST_BUILD
+        dbg_flags |= 1;
+#endif
+        return 0xFFFF;
+    }
+    o = vq_off;
+    vq_off = (u16)(vq_off + words);
+    return o;
+}
+
+static void vq_commit(u8 kind, u16 vaddr, u16 off, u16 words)
+{
+    vq_addr[vq_n] = vaddr;
+    vq_src[vq_n] = (u16)(VQ_DATA_ADDR + (off << 1));
+    vq_len[vq_n] = (u16)(words << 1);
+    vq_kind[vq_n] = kind;
+    vq_n++;
+}
+
+void vq_commit_seq(u16 vaddr, u16 off, u16 words)
+{
+    vq_commit(VQ_KIND_SEQ, vaddr, off, words);
+}
+
+void vq_commit_col(u16 vaddr, u16 off, u16 words)
+{
+    vq_commit(VQ_KIND_COL, vaddr, off, words);
+}
+
 u8 vq_push_vram_col(u16 vaddr, const u16 *src, u8 words)
 {
     return vq_push(VQ_KIND_COL, vaddr, src, words);
@@ -294,6 +329,16 @@ void vq_install(void)
 }
 
 #ifdef TEST_BUILD
+u16 vq_scanline(void)
+{
+    u16 v;
+    v = REG_STAT78; /* reset the OPVCT read flip-flop */
+    v = REG_SLHV;   /* latch */
+    v = REG_OPVCT;
+    v |= (REG_OPVCT & 1) << 8;
+    return v;
+}
+
 /* Force the drain's per-NMI byte budget to `bytes` (0 = back to the measured
  * value). Lets test_vblank squeeze the drain to exactly one entry per NMI so
  * the defer/carry-over path is deterministic. The squeeze value it uses (700)

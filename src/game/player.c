@@ -1,5 +1,7 @@
 #include "src/game/player.h"
 
+#include "src/game/entity.h"
+#include "src/game/portal.h"
 #include "src/game/room.h"
 #include "src/game/tuning.h"
 
@@ -23,6 +25,27 @@ static u8 jbuf;   /* frames a buffered jump press stays live */
 static u8 jheld;  /* B held (for the variable-height cut) */
 static u8 face;   /* 0 right, 1 left */
 static u8 anim;   /* frame counter for animation */
+
+/* --- the Rift Gun (Phase 2) --- */
+static u8 tp_cool;  /* portal re-entry cooldown */
+static u8 aiming;   /* R held (reticle shows) */
+static u8 aim;      /* 8-way: 0 E,1 NE,2 N,3 NW,4 W,5 SW,6 S,7 SE */
+static u8 cur_col;  /* PC_BLUE / PC_GOLD */
+static u8 held_y, held_x, held_a, held_sel; /* edge detectors */
+
+/* aim direction -> shot velocity components (SHOT_SPD per axis; diagonals
+ * ride both, the straight-line 4px/f spec applies per axis). FILE-scope
+ * static const only (prophet's function-scope-static .data placement bug). */
+static const s16 aim_vx[8] = {SHOT_SPD, SHOT_SPD, 0, -SHOT_SPD,
+                              -SHOT_SPD, -SHOT_SPD, 0, SHOT_SPD};
+static const s16 aim_vy[8] = {0, -SHOT_SPD, -SHOT_SPD, -SHOT_SPD,
+                              0, SHOT_SPD, SHOT_SPD, SHOT_SPD};
+static const s8 ret_dx[8] = {20, 14, 0, -14, -20, -14, 0, 14};
+static const s8 ret_dy[8] = {0, -14, -20, -14, 0, 14, 20, 14};
+
+s16 player_px(void) { return (s16)(px >> 8); }
+s16 player_py(void) { return (s16)(py >> 8); }
+u8 player_face(void) { return face; }
 
 static u8 solid(s16 tx, s16 ty)
 {
@@ -89,6 +112,14 @@ void player_init(u16 x, u16 y)
     jheld = 0;
     face = 0;
     anim = 0;
+    tp_cool = 0;
+    aiming = 0;
+    aim = 0;
+    cur_col = 0;
+    held_y = 0;
+    held_x = 0;
+    held_a = 0;
+    held_sel = 0;
 #ifdef TEST_BUILD
     dbg_px = px;
     dbg_py = py;
@@ -99,11 +130,15 @@ void player_init(u16 x, u16 y)
 }
 
 /* deadzone-follow: nudge the camera only when the box center leaves the
- * dead window; room_cam_set clamps to the room edges and streams seams */
+ * dead window; per-frame delta capped at CAM_EASE_MAX so a teleport snaps
+ * with a short ease instead of demanding a whole-window stream in one
+ * frame. room_cam_set clamps to the room edges and streams seams. */
 static void cam_follow(void)
 {
-    s16 cx = (s16)room_cam_x();
-    s16 cy = (s16)room_cam_y();
+    s16 ox = (s16)room_cam_x();
+    s16 oy = (s16)room_cam_y();
+    s16 cx = ox;
+    s16 cy = oy;
     s16 pcx = (s16)((s16)(px >> 8) + (PB_W / 2));
     s16 pcy = (s16)((s16)(py >> 8) + (PB_H / 2));
     s16 d;
@@ -113,14 +148,33 @@ static void cam_follow(void)
     else if (d > CAM_DEAD_X1)
         cx = (s16)(pcx - CAM_DEAD_X1);
     d = (s16)(pcy - cy);
-    if (d < CAM_DEAD_Y0)
-        cy = (s16)(pcy - CAM_DEAD_Y0);
-    else if (d > CAM_DEAD_Y1)
-        cy = (s16)(pcy - CAM_DEAD_Y1);
+    if (grounded)
+    {
+        if (d < CAM_DEAD_Y0)
+            cy = (s16)(pcy - CAM_DEAD_Y0);
+        else if (d > CAM_DEAD_Y1)
+            cy = (s16)(pcy - CAM_DEAD_Y1);
+    }
+    else
+    {
+        /* airborne: hold the line unless Wren nears a screen edge */
+        if (d < CAM_AIR_Y0)
+            cy = (s16)(pcy - CAM_AIR_Y0);
+        else if (d > CAM_AIR_Y1)
+            cy = (s16)(pcy - CAM_AIR_Y1);
+    }
     if (cx < 0)
         cx = 0;
     if (cy < 0)
         cy = 0;
+    if ((s16)(cx - ox) > CAM_EASE_X)
+        cx = (s16)(ox + CAM_EASE_X);
+    else if ((s16)(cx - ox) < -CAM_EASE_X)
+        cx = (s16)(ox - CAM_EASE_X);
+    if ((s16)(cy - oy) > CAM_EASE_Y)
+        cy = (s16)(oy + CAM_EASE_Y);
+    else if ((s16)(cy - oy) < -CAM_EASE_Y)
+        cy = (s16)(oy - CAM_EASE_Y);
     room_cam_set((u16)cx, (u16)cy);
 }
 
@@ -142,6 +196,9 @@ void player_update(u16 pad)
     s16 x, y;
     s16 t;
     u8 press_b = 0;
+    u8 oncrate;
+
+    aiming = (u8)((pad & KEY_R) ? 1 : 0);
 
     /* --- input: run --- */
     if (pad & KEY_RIGHT)
@@ -235,6 +292,8 @@ void player_update(u16 pad)
             vx = 0;
         }
     }
+    /* crates are pushable walls (entity.c clamps + imparts push velocity) */
+    ent_clamp_x(&px, &vx, (s16)(py >> 8), PB_W, PB_H, grounded);
 
     /* --- Y sweep --- */
     py += vy;
@@ -261,13 +320,95 @@ void player_update(u16 pad)
         }
     }
 
+    /* landing on / bonking a crate */
+    oncrate = ent_clamp_y(&py, &vy, (s16)(px >> 8), PB_W, PB_H);
+
+    /* --- portal transit (the whole point) --- */
+    if (portal_check(&px, &py, &vx, &vy, &tp_cool, PB_W, PB_H))
+        oncrate = 0; /* always airborne out of a rift */
+
     /* --- ground probe (one px below the feet) + coyote --- */
+    x = (s16)(px >> 8);
     y = (s16)(py >> 8);
-    grounded = (u8)(vy >= 0 && solid_row(x, (s16)((s16)(y + PB_H) >> 3)));
+    grounded = (u8)(oncrate ||
+                    (vy >= 0 && solid_row(x, (s16)((s16)(y + PB_H) >> 3))));
     if (grounded)
         coyote = P_COYOTE_F;
     else if (coyote)
         coyote--;
+
+    /* --- the Rift Gun --- */
+    if (pad & KEY_R)
+    {
+        /* 8-way aim lock while R is held */
+        if (pad & KEY_RIGHT)
+        {
+            if (pad & KEY_UP)
+                aim = 1;
+            else if (pad & KEY_DOWN)
+                aim = 7;
+            else
+                aim = 0;
+        }
+        else if (pad & KEY_LEFT)
+        {
+            if (pad & KEY_UP)
+                aim = 3;
+            else if (pad & KEY_DOWN)
+                aim = 5;
+            else
+                aim = 4;
+        }
+        else if (pad & KEY_UP)
+            aim = 2;
+        else if (pad & KEY_DOWN)
+            aim = 6;
+    }
+    else
+        aim = face ? 4 : 0; /* unlocked: aim rides the facing */
+
+    if (pad & KEY_X)
+    {
+        if (!held_x)
+            cur_col ^= 1; /* toggle blue/gold */
+        held_x = 1;
+    }
+    else
+        held_x = 0;
+
+    if (pad & KEY_SELECT)
+    {
+        if (!held_sel)
+            portal_clear(); /* recall both */
+        held_sel = 1;
+    }
+    else
+        held_sel = 0;
+
+    if (pad & KEY_A)
+    {
+        if (!held_a)
+            ent_grab_toggle(); /* grab / throw a crate */
+        held_a = 1;
+    }
+    else
+        held_a = 0;
+
+    if (pad & KEY_Y)
+    {
+        if (!held_y)
+        {
+            /* fire: a shot entity from the box center along the aim */
+            u8 s = ent_spawn((u8)(cur_col ? ET_SHOT_G : ET_SHOT_B),
+                             (u16)((s16)(px >> 8) + (PB_W >> 1) - (SHOT_BOX >> 1)),
+                             (u16)((s16)(py >> 8) + 8));
+            if (s != 0xFF)
+                ent_set_vel(s, aim_vx[aim], aim_vy[aim]);
+        }
+        held_y = 1;
+    }
+    else
+        held_y = 0;
 
     /* --- FSM --- */
     if (grounded)
@@ -314,4 +455,15 @@ void player_render(void)
     oamMemory[5] = (u8)(sy + 16);
     oamMemory[6] = (u8)(32 + (f << 1));
     oamMemory[7] = attr;
+
+    /* aim reticle (OAM 18, tile 76) 20px out along the 8-way aim */
+    if (aiming)
+    {
+        oamMemory[72] = (u8)(sx + 2 + ret_dx[aim] - 5);
+        oamMemory[73] = (u8)(sy + 14 + ret_dy[aim] - 5);
+        oamMemory[74] = 76;
+        oamMemory[75] = 0x20;
+    }
+    else
+        oamMemory[73] = 0xF0;
 }

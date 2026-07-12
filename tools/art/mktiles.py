@@ -156,6 +156,56 @@ def mt_window():
     return c
 
 
+def paint_portal_tiles():
+    """returns [pv_cap, pv_body, ph_cap, ph_body] x {blue, gold}.
+    Vertical tiles: the opening is a 6px-wide slit at the tile's left edge
+    (map flips mirror it to the other wall side as needed). Horizontal: a
+    6px-tall slit at the top edge. Cap tiles round the slit's end."""
+    out = []
+    for gold in (False, True):
+        rim = 9 if gold else 10    # brass light vs cyan rim
+        core = 10 if gold else 14  # brass highlight vs white core
+        # vertical cap (top end): slit columns 1-5, rounded at row 1
+        c = [[0] * 8 for _ in range(8)]
+        for y in range(2, 8):
+            c[y][1] = rim
+            c[y][5] = rim
+            for x in range(2, 5):
+                c[y][x] = core
+        c[1][2] = rim
+        c[1][3] = rim
+        c[1][4] = rim
+        out.append(c)
+        # vertical body: slit continues full height
+        b = [[0] * 8 for _ in range(8)]
+        for y in range(8):
+            b[y][1] = rim
+            b[y][5] = rim
+            for x in range(2, 5):
+                b[y][x] = core
+        out.append(b)
+        # horizontal cap (left end): slit rows 1-5, rounded at col 1
+        h = [[0] * 8 for _ in range(8)]
+        for x in range(2, 8):
+            h[1][x] = rim
+            h[5][x] = rim
+            for y in range(2, 5):
+                h[y][x] = core
+        h[2][1] = rim
+        h[3][1] = rim
+        h[4][1] = rim
+        out.append(h)
+        # horizontal body
+        hb = [[0] * 8 for _ in range(8)]
+        for x in range(8):
+            hb[1][x] = rim
+            hb[5][x] = rim
+            for y in range(2, 5):
+                hb[y][x] = core
+        out.append(hb)
+    return out
+
+
 def t_star(kind):
     t = [[0] * 8 for _ in range(8)]
     if kind == 1:
@@ -211,6 +261,7 @@ def main():
         tiles.extend(c.quads())
     tiles.append(t_star(1))
     tiles.append(t_star(2))
+    tiles.extend(paint_portal_tiles())  # 27..34: pv/ph cap+body, blue then gold
     assert len(tiles) == TILE_COUNT, len(tiles)
 
     with open(os.path.join(GEN, "tiles.chr"), "wb") as f:

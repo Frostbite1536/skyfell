@@ -21,7 +21,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 GEN = os.path.join(ROOT, "src", "data", "generated")
 MAPS = os.path.join(GEN, "maps")
 
-ATTR_PAD = 32  # attr table entries in ROM (tile ids must stay below this)
+ATTR_PAD = 64  # attr table entries in ROM (tile ids must stay below this)
 
 
 def bake(m16_path):

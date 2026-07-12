@@ -34,7 +34,7 @@ PAL = [
     0x503620,  # 12 strap/belt
     0xF0F0F0,  # 13 white glint
     0x94ACC4,  # 14 buckle steel
-    0x603048,  # 15 spare
+    0xC84040,  # 15 enemy red
 ]
 
 W, H = 16, 32
@@ -143,24 +143,110 @@ def frame(kind):
 FRAMES = ["idle", "idle2", "run1", "run2", "run3", "run4", "jump", "fall"]
 
 
+# --- Phase 2 entity sprites: one 16x16 each, name-table rows 4-5.
+# Entity i's base tile name = 64 + i*2 (entity.c's ENT_ART table order).
+class E16:
+    def __init__(self):
+        self.p = [[0] * 16 for _ in range(16)]
+
+    def px(self, x, y, c):
+        if 0 <= x < 16 and 0 <= y < 16:
+            self.p[y][x] = c
+
+    def rect(self, x0, y0, x1, y1, c):
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                self.px(x, y, c)
+
+    def orb(self, rim, core):
+        for y in range(16):
+            for x in range(16):
+                d = (x - 7) * (x - 7) + (y - 7) * (y - 7)
+                if d <= 9:
+                    self.p[y][x] = core
+                elif d <= 20:
+                    self.p[y][x] = rim
+
+
+def e_crate():
+    c = E16()
+    c.rect(1, 1, 14, 14, 12)          # wood
+    c.rect(2, 2, 13, 13, 8)
+    c.rect(2, 7, 13, 8, 9)            # mid band
+    c.rect(1, 1, 14, 1, 9)
+    for x in (1, 14):
+        c.rect(x, 1, x, 14, 12)
+    c.rect(1, 14, 14, 14, 1)
+    c.px(2, 2, 13)
+    return c
+
+
+def e_sentry(dead=False):
+    c = E16()
+    c.rect(2, 13, 13, 15, 7)          # base
+    c.rect(3, 8, 12, 12, 14)          # housing
+    c.rect(4, 5, 11, 7, 4)            # dome
+    c.rect(5, 4, 10, 4, 5)
+    if dead:
+        c.px(6, 8, 1)                 # cracked, eye out
+        c.px(9, 10, 1)
+        c.px(7, 6, 1)
+    else:
+        c.rect(6, 8, 9, 10, 1)        # eye socket
+        c.rect(7, 9, 8, 9, 15)        # the red eye
+    c.rect(2, 15, 13, 15, 1)
+    return c
+
+
+def e_shot(gold):
+    c = E16()
+    c.orb(9 if gold else 10, 10 if gold else 13)
+    return c
+
+
+def e_sshot():
+    c = E16()
+    c.orb(15, 13)
+    return c
+
+
+def e_reticle():
+    c = E16()
+    for dx, dy in ((0, 0), (1, 0), (0, 1)):
+        for cx, cy in ((3, 3), (12, 3), (3, 12), (12, 12)):
+            c.px(cx + (dx if cx < 8 else -dx), cy + (dy if cy < 8 else -dy), 13)
+    c.px(7, 7, 13)
+    c.px(8, 8, 13)
+    return c
+
+
+ENTS = [e_crate(), e_sentry(False), e_sentry(True),
+        e_shot(False), e_shot(True), e_sshot(), e_reticle()]
+
+
 def main():
     os.makedirs(GEN, exist_ok=True)
-    # name table: 16 tiles x 4 rows; frame f top half at col f*2 rows 0-1,
-    # bottom half at col f*2 rows 2-3
-    sheet = [[0] * 128 for _ in range(64)]  # 128x64 px canvas... rows 0-31 used
+    # name table: 16 tiles x 6 rows. Player frame f: top half at col f*2
+    # rows 0-1, bottom half rows 2-3. Entity i: 16x16 at col i*2 rows 4-5
+    # (base name 64 + i*2).
+    sheet = [[0] * 128 for _ in range(48)]
     for f, kind in enumerate(FRAMES):
         c = frame(kind)
         for y in range(16):
             for x in range(16):
                 sheet[y][f * 16 + x] = c.p[y][x]          # top half rows 0-15
                 sheet[16 + y][f * 16 + x] = c.p[16 + y][x]  # bottom rows 16-31
-    # cut into 8x8 tiles in NAME-TABLE order (16 tiles/row, 4 rows)
+    for i, e in enumerate(ENTS):
+        for y in range(16):
+            for x in range(16):
+                sheet[32 + y][i * 16 + x] = e.p[y][x]
+    # cut into 8x8 tiles in NAME-TABLE order (16 tiles/row, 6 rows)
     tiles = []
-    for trow in range(4):
+    for trow in range(6):
         for tcol in range(16):
             t = [[sheet[trow * 8 + y][tcol * 8 + x] for x in range(8)] for y in range(8)]
             tiles.append(t)
-    assert len(tiles) == 64
+    assert len(tiles) == 96
 
     with open(os.path.join(GEN, "obj.chr"), "wb") as f:
         for t in tiles:
@@ -171,13 +257,13 @@ def main():
 
     # preview PNG (magenta backdrop so transparency reads)
     rows = []
-    for y in range(32):
+    for y in range(48):
         row = bytearray()
         for x in range(128):
             v = PAL[sheet[y][x]] if sheet[y][x] else 0x552255
             row += bytes(((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF))
         rows.append(bytes(row))
-    write_png(os.path.join(GEN, "obj.png"), 128, 32, rows)
+    write_png(os.path.join(GEN, "obj.png"), 128, 48, rows)
     print("mkobj: 8 frames -> obj.chr/pal/png")
 
 

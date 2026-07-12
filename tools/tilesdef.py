@@ -35,7 +35,19 @@ METAS = [
 ]
 TILE_STAR1 = 25  # decor singles (drawn after the metas)
 TILE_STAR2 = 26
-TILE_COUNT = 27
+# Portal BG tiles (Phase 2). Vertical = on a wall (opening runs down the
+# wall face); horizontal = on floor/ceiling. Caps mirror via map-word flips.
+# All portal tiles are collision-EMPTY: the opening is walk-through, the
+# teleport plane logic lives in portal.c.
+TILE_PV_CAP_B = 27   # blue vertical cap (bottom cap = vflip)
+TILE_PV_BODY_B = 28
+TILE_PH_CAP_B = 29   # blue horizontal cap (right cap = hflip)
+TILE_PH_BODY_B = 30
+TILE_PV_CAP_G = 31   # gold set
+TILE_PV_BODY_G = 32
+TILE_PH_CAP_G = 33
+TILE_PH_BODY_G = 34
+TILE_COUNT = 35
 
 
 def meta_quad(name):

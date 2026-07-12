@@ -22,7 +22,14 @@ void room_load(u8 id, u16 camx, u16 camy); /* force-blank full setup */
 void room_cam_warp(u16 x, u16 y);          /* force-blank camera jump */
 void room_cam_set(u16 x, u16 y);           /* live move: streams seams */
 
-u16 room_attr(u16 tx, u16 ty); /* 8x8-tile attribute; out of bounds = solid */
+u16 room_attr(u16 tx, u16 ty);     /* overlay-aware: portal cells read EMPTY;
+                                      out of bounds = solid */
+u16 room_attr_raw(u16 tx, u16 ty); /* the ROM truth — the portal placement
+                                      validator reads this (INV-ENG-004) */
+/* re-push a run of cells through the vblank queue (portal place/remove);
+ * cells outside the current VRAM window are skipped (streaming will draw
+ * them with the overlay when they enter) */
+void room_refresh_strip(u16 tx, u16 ty, u8 len, u8 vertical);
 u16 room_cam_x(void);
 u16 room_cam_y(void);
 u16 room_w_px(void);

@@ -30,9 +30,37 @@
 #define CAM_DEAD_X1 136
 #define CAM_DEAD_Y0 100
 #define CAM_DEAD_Y1 124
+/* airborne: vertical follow ONLY near the screen edges (the classic SNES
+ * platformer rule — a camera that bobs with jump arcs feels bad AND streams
+ * BG rows every jump; it cost 32 measured lag frames) */
+#define CAM_AIR_Y0 40
+#define CAM_AIR_Y1 190
 
 /* --- spawn (room 0, px: box top-left) --- */
 #define SPAWN_X 88
 #define SPAWN_Y 418
+
+/* --- the Rift Gun (Phase 2, GDD specs) --- */
+#define SHOT_SPD 0x0400    /* 8.8: 4 px/f portal shot */
+#define TP_COOLDOWN 8      /* frames before the same object re-enters */
+#define TP_SPEED_CAP 0x0600 /* 6 px/f per axis after a teleport */
+#define TP_EJECT_MIN 0x0100 /* 1 px/f guaranteed off the exit surface */
+
+/* --- entities --- */
+#define CRATE_W 14
+#define CRATE_H 14
+#define CRATE_PUSH 0x00C0  /* 0.75 px/f while the player pushes */
+#define CRATE_FRIC 0x0018
+#define THROW_VX 0x0280    /* crate throw impulse */
+#define THROW_VY -0x0200
+#define GRAB_RANGE 20      /* px from player center to a crate center */
+#define SENTRY_PERIOD 96   /* frames between sentry shots */
+#define SSHOT_SPD 0x0200   /* 2 px/f sentry shot */
+#define SHOT_BOX 6         /* shots use a 6x6 box */
+
+/* --- camera --- */
+#define CAM_EASE_X 16 /* max camera px/frame (teleport snap-ease) */
+#define CAM_EASE_Y 8  /* vertical: one BG row stream per frame max — two
+                         row-builds in one frame were measured lag frames */
 
 #endif

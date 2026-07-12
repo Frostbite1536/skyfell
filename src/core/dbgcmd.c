@@ -1,12 +1,15 @@
 #include "src/core/dbgcmd.h"
 #include "src/core/rng.h"
 #include "src/core/vblank.h"
+#include "src/game/entity.h"
 #include "src/game/player.h"
+#include "src/game/portal.h"
 
 #ifdef TEST_BUILD
-extern u16 dbg_cmd;  /* dbg.asm +36 */
-extern u16 dbg_arg0; /* dbg.asm +38 */
-extern u16 dbg_arg1; /* dbg.asm +40 */
+extern u16 dbg_cmd;    /* dbg.asm +36 */
+extern u16 dbg_arg0;   /* dbg.asm +38 */
+extern u16 dbg_arg1;   /* dbg.asm +40 */
+extern u16 dbg_ewatch; /* dbg.asm +58 */
 #endif
 
 void dbg_poll(void)
@@ -45,6 +48,31 @@ void dbg_poll(void)
         player_warp(dbg_arg0, dbg_arg1); /* POS_SET(x px, y px): place the
                                             player's box top-left; zeroes
                                             motion; force-blank camera warp */
+    else if (c == 5)
+    {
+        /* ENT_SPAWN(arg0 = type | slot-face<<8, arg1 = x_meta | y_meta<<8):
+         * spawn at the metatile's top-left px; bit8 sets a sentry's face */
+        u8 s = ent_spawn((u8)dbg_arg0,
+                         (u16)(((u8)dbg_arg1) << 4),
+                         (u16)(((u8)(dbg_arg1 >> 8)) << 4));
+        if (s != 0xFF && (dbg_arg0 & 0x100))
+            ent_set_face(s, 1);
+    }
+    else if (c == 6)
+    {
+        /* PORTAL_SET(arg0 = color | orient<<8, arg1 = tx | ty<<8) — goes
+         * through THE validator (INV-ENG-004); 0xFFFF = recall both */
+        if (dbg_arg0 == 0xFFFF)
+            portal_clear();
+        else
+            portal_try_place((u8)(dbg_arg0 & 1), (u16)((u8)dbg_arg1),
+                             (u16)((u8)(dbg_arg1 >> 8)),
+                             (u8)((dbg_arg0 >> 8) & 3));
+    }
+    else if (c == 7)
+        dbg_ewatch = dbg_arg0; /* WATCH(slot) — entity mirror at +50..+56 */
+    else if (c == 8)
+        ent_clear_all();
     dbg_cmd = 0; /* ack */
 #endif
 }

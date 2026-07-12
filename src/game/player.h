@@ -18,4 +18,9 @@ void player_warp(u16 x, u16 y);    /* player_init + force-blank camera warp */
 void player_update(u16 pad);       /* one frame: input, physics, collision, camera */
 void player_render(void);          /* OAM shadow writes (lib ISR DMAs it) */
 
+/* entity coupling (entity.c reads these for carry/throw/grab) */
+s16 player_px(void); /* box top-left, whole px */
+s16 player_py(void);
+u8 player_face(void); /* 0 right, 1 left */
+
 #endif
