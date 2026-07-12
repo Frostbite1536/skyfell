@@ -1,0 +1,32 @@
+# Build-only CI (ROADMAP Phase 0, R5: the emulator suite needs a display —
+# tests gate locally for now). Adapted from sibling prophet's proven job
+# (their D-057). Phase 0 needs no Python deps: the only generator step is
+# gfx4snes from the pinned toolchain zip.
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PVSnesLib 4.5.0 (pinned)
+        run: |
+          curl -sL -o /tmp/pvsneslib.zip https://github.com/alekmaul/pvsneslib/releases/download/4.5.0/pvsneslib_450_64b_linux.zip
+          mkdir -p "$HOME/snesdev"
+          unzip -q /tmp/pvsneslib.zip -d "$HOME/snesdev"
+
+      - name: Build ROM
+        run: make
+        env:
+          PVSNESLIB_HOME: /home/runner/snesdev/pvsneslib
+
+      - name: Upload ROM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skyfell-sfc
+          path: build/skyfell.sfc

@@ -18,6 +18,14 @@ pvsneslib*/
 # Generated data (converter outputs land in src/data via build, not commits)
 src/data/generated/
 
+# Converter outputs beside their asset sources + wla/tcc link intermediates
+*.pic
+*.pal
+*.inc
+*_data.as
+*.asp
+linkfile
+
 # Editors / OS
 .vscode/
 .idea/

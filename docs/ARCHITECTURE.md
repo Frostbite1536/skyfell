@@ -45,10 +45,10 @@ Hot paths (collision inner loop, OAM build) may drop to assembly *after* profili
 | Range | Use |
 |---|---|
 | `$0000–00FF` | direct page: engine hot state |
-| `$0100–01FF` | stack |
 | `$0200–043F` | OAM shadow (544B) |
-| `$1F00–1FFF` | **debug/test block** (TEST builds; INV-TEST-001) — magic `0x51FE`, frame, player pos/vel, gravity, portals, room id, warp-request mailbox for Lua |
+| `…–$1FFF` | stack — pvsneslib crt0 sets S=`$1FFF`, grows **down** (verified in prophet's Phase 0; why the debug block can't live at `$1F00`, D-010) |
 | `$2000–…` | entity pool, room state, portal state, save staging |
+| `$FF00–FFFF` | **debug/test block** (TEST builds; INV-TEST-001, D-010) — magic `0x51FE`, frame, player pos/vel, gravity, portals, room id, warp-request mailbox for Lua |
 | `$7F0000–…` | room metatile cache, decompression scratch |
 
 ### VRAM — Mode 1 rooms (bytes)

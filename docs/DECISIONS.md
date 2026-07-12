@@ -4,6 +4,9 @@ Settled questions with rationale, so future sessions don't re-litigate them. New
 
 ---
 
+## D-010 — Debug block re-pinned to `$7EFF00` (was `$7E1F00`); magic stays `0x51FE`
+**2026-07-11** · Context: sibling repo `../prophet` proved during its Phase 0 bring-up that `$7E1F00` is unusable on PVSnesLib 4.5.0 — `crt0_snes.asm` (line 244) sets the stack to `$1FFF` growing **down** through the `$1F00` page, colliding with any block there (`prophet/dbg.asm:10-12`, `prophet/tests/README.md:19`). Skyfell had pinned `$7E1F00` at planning time, before any code existed; no test or offset ever shipped against it, so this is a paper-only move, not an INV-TEST-001 violation. Decision: block lives at `$7E:FF00` (top page of WRAM bank `$7E`), declared `.RAMSECTION ".dbg" BANK 126 SLOT 2 ORGA $FF00 FORCE` — BANK must be 126 (= `$7E`), not 0, because tcc816 addresses the labels with absolute-long (`sta.l`); `FORCE` makes wlalink fail loudly on any collision. Alternatives: another low page (rejected — anything under `$2000` is stack/DP territory and low WRAM is mirrored, inviting aliasing confusion). Jeremy approved 2026-07-11.
+
 ## D-009 — License: OPEN (Jeremy's call)
 **2026-07-07** · Code license undecided (MIT vs. all-rights-reserved). Note: pure homebrew — no Nintendo code or assets are used or copied; ROM runs in emulators/flashcarts. Blocks nothing until first public release.
 

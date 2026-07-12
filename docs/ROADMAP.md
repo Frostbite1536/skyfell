@@ -30,13 +30,13 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 
 ### Included Features
 
-- [ ] Install PVSnesLib **4.5.0 pinned** (`pvsneslib_450_64b_windows.zip`) outside the repo; set `PVSNESLIB_HOME` (verify exact env var name against the release's install notes)
-- [ ] Install MesenCE (latest release) outside the repo; record exact version in `docs/CONTINUATION.md`
-- [ ] `Makefile`: `make` → `build/skyfell.sfc` (LoROM, FastROM flagged, header name `RIFT SKYFELL ENGINE`), `make test` → TEST build + run Lua suite, `make run` → launch MesenCE with the ROM, `make clean`
-- [ ] Hello-world ROM: Mode 1, backdrop color cycle + "SKYFELL" text, NMI handler with vblank queue stub
-- [ ] Test harness: `tools/run_tests.py` + `tests/lua/lib/harness.lua`; first test `test_boot.lua` asserts debug-RAM magic `0x51FE` at `$7E1F00` and takes a screenshot; **verify `--testrunner` flag behavior in MesenCE** (confirmed present in Mesen2 source; fallback = windowed launch, Lua `emu.stop(code)` still gates)
-- [ ] Spike: run `gfx4snes` on one 16-color PNG and `tmx2snes` on a trivial Tiled map — confirm both produce linkable output and whether tmx2snes carries custom tile properties (decides R4 fallback)
-- [ ] CI: GitHub Actions **build-only** job (Linux zip); test job deferred (R5)
+- [x] Install PVSnesLib **4.5.0 pinned** outside the repo; set `PVSNESLIB_HOME` *(done — shared install at `C:/Users/LCM/snesdev/pvsneslib`, forward-slash path, exported inline per CONTINUATION)*
+- [x] Install MesenCE outside the repo; record exact version in `docs/CONTINUATION.md` *(done — MesenCE 2.2.1 at `C:/Users/LCM/snesdev/mesence`)*
+- [x] `Makefile`: `make` → `build/skyfell.sfc` (LoROM, FastROM flagged, header name `RIFT SKYFELL ENGINE`), `make test` → TEST build + run Lua suite, `make run` → launch MesenCE with the ROM, `make clean` *(done 2026-07-11, adapted from prophet)*
+- [x] Hello-world ROM: Mode 1, backdrop color cycle + "SKYFELL" text, NMI handler with vblank queue stub *(done 2026-07-11 — `src/main.c`, `src/core/vblank.c`)*
+- [x] Test harness: `tools/run_tests.py` + `tests/lua/lib/harness.lua`; first test `test_boot.lua` asserts debug-RAM magic `0x51FE` at `$7EFF00` (D-010) and takes a screenshot *(done 2026-07-11 — `--testrunner` proven on this machine; baseline 1/1)*
+- [ ] Spike: run `gfx4snes` on one 16-color PNG *(proven — the font pipeline runs it every build)* and `tmx2snes` on a trivial Tiled map — confirm linkable output and whether tmx2snes carries custom tile properties (decides R4 fallback)
+- [ ] CI: GitHub Actions **build-only** job (Linux zip); test job deferred (R5) *(workflow written, adapted from prophet's green job; unproven until the GitHub remote exists)*
 
 ### Explicit Exclusions
 

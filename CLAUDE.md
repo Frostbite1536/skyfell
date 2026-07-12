@@ -27,7 +27,7 @@ SNES puzzle-platformer/Metroidvania (real `.sfc` ROM): portal gun with momentum 
 - Never assume a sprite can rotate (INV-HW-004).
 - Never claim the ROM works from code inspection or a clean compile. **Done = `make test` output pasted, all green, on a clean build.** For anything visual, attach the test screenshot from `artifacts/`.
 - Never commit `build/`, `artifacts/`, ROMs, or toolchain binaries.
-- Never move/change existing debug-block offsets at `$7E1F00` — append only (INV-TEST-001).
+- Never move/change existing debug-block offsets at `$7EFF00` — append only (INV-TEST-001, D-010).
 - Never touch the golden replay values without a DECISIONS.md entry explaining the physics change.
 
 ## Verification bar

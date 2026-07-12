@@ -73,7 +73,7 @@ Non-negotiable truths. **If a change violates one of these, it is a bug or a pro
 ## Test & Audio Contracts
 
 ### INV-TEST-001: Debug block is an append-only contract
-**Rule**: TEST-build block at `$7E1F00` (magic `0x51FE`) only ever *appends* fields; existing offsets never move or change meaning. Includes the Lua→game warp-request mailbox.
+**Rule**: TEST-build block at `$7EFF00` (magic `0x51FE`; re-pinned from `$7E1F00`, D-010 — crt0 stack collision) only ever *appends* fields; existing offsets never move or change meaning. Includes the Lua→game warp-request mailbox.
 **Rationale**: Every Lua test depends on these offsets.
 **Enforcement**: layout table in `tests/README.md` is the source of truth; review gate.
 

@@ -1,10 +1,13 @@
 # tests/ — emulator-level verification
 
-Tests run the **real ROM** in MesenCE headless: `Mesen --testrunner build/skyfell-test.sfc tests/lua/<case>.lua` (flag confirmed in Mesen2 source `UI/Utilities/CommandLineHelper.cs`; exact MesenCE invocation gets proven in Phase 0 and recorded here). Each Lua script drives input frame-by-frame, reads game state from the debug block, asserts, screenshots, and exits via `emu.stop(code)` — exit code 0 = pass.
+Tests run the **real ROM** in MesenCE headless. The invocation proven in Phase 0 (2026-07-11), per test:
+`Mesen.exe --testrunner --enablestdout --timeout=120 build/skyfell-test.sfc <combined.lua>` — switches NEED the `--` prefix (bare `timeout=60` is treated as a missing file), `DOTNET_ROOT` must point at the user-local .NET (run_tests.py injects it), and the gate signal is the process **exit code** from `emu.stop(code)` (0 = pass; emu.log output is invisible in testrunner mode). Each Lua script drives input frame-by-frame, reads game state from the debug block, asserts, screenshots, and stops.
 
 `tools/run_tests.py` discovers `tests/lua/test_*.lua`, runs each, collects screenshots into `artifacts/<test>/`, and prints the pass/fail table that gets recorded in `docs/CONTINUATION.md`.
 
-## Debug block contract — `$7E1F00`, TEST builds only (INV-TEST-001: append-only)
+## Debug block contract — `$7EFF00`, TEST builds only (INV-TEST-001: append-only)
+
+*(Re-pinned from the planning-time `$7E1F00` per D-010: pvsneslib 4.5.0's crt0 puts the stack at `$1FFF` growing down through that page. Declared `BANK 126 SLOT 2 ORGA $FF00 FORCE` in `dbg.asm` — bank 126 = `$7E`, required because tcc816 addresses the labels with absolute-long `sta.l`.)*
 
 | Offset | Type | Field |
 |---|---|---|
@@ -25,9 +28,11 @@ Tests run the **real ROM** in MesenCE headless: `Mesen --testrunner build/skyfel
 | +24 | u16 | warp-request mailbox (Lua writes room id + 0x8000; game consumes) |
 | +26… | — | **append new fields here; never repack** |
 
-## Planned harness helpers (`tests/lua/lib/harness.lua`)
+## Harness helpers (`tests/lua/lib/harness.lua`, ported from prophet)
 
-`waitFrames(n)` · `press(buttons, frames)` · `readU8/readU16/readS32(off)` · `assertEq(got, want, msg)` · `snap(name)` · `warp(room)` · `pass()/fail(msg)`
+`H.waitAlive()` (call first, always) · `H.waitFrames(n)` · `H.waitUntil(pred, max, what, code)` · `H.maskInput()` (call before `H.run`; keyboard can never leak into a deterministic run) · `H.padScript(fn)` (scripted pad as a function of `dbg_frame`) · `H.readU8/readU16`, `H.dbgU8/dbgU16(off)`, `H.vramWord/cgramWord` · `H.assertEq(got, want, what, code)` · `H.snap(name)` · `H.warp(room)` (game side lands Phase 1) · `H.pass()/H.fail(msg, code)` · `H.run(body)`
+
+Stop-code convention: 0 pass · 1 generic · 12 Lua error · 13 body-ended-without-pass · tests use 10+ (skipping 12/13). The runner retries ONCE on rc<0 only (emulator death, never an assert).
 
 ## Test inventory (grows per phase — see ROADMAP gates)
 
