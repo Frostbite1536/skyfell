@@ -22,6 +22,10 @@ extern u16 dbg_fizz;   /* dbg.asm +60 */
 
 #define STRIP 6 /* 48px opening = 6 tiles (GDD) */
 
+extern u16 room01_map[]; /* rooms.asm — the validator reads raw map/attr
+                            directly (no calls in the profiled hot path) */
+extern u16 room01_att[];
+
 /* --- state --- */
 static u8 p_on[2];
 static u8 p_or[2];  /* outward normal 0..3 */
@@ -33,6 +37,38 @@ u8 portal_any;      /* p_on[0]|p_on[1] — GLOBAL on purpose: room.c's per-tile
                        early-out the overlay cost 32-64 lag frames across
                        test_room's walk (Phase 2 lag lesson). */
 #define p_any portal_any
+/* combined bounding box over both strips, tile coords INCLUSIVE — the
+ * second-stage inline gate: with portals PLACED, every collision query
+ * paying a portal_cell call cost ~60 scanlines per ordinary frame
+ * (measured); 4 compares against these kill it for queries anywhere else */
+u16 portal_bx0, portal_bx1, portal_by0, portal_by1;
+
+static void rebbox(void)
+{
+    u8 c;
+    u16 ex, ey;
+    portal_bx0 = 0xFFFF; /* empty box: no tx can be >= it */
+    portal_bx1 = 0;
+    portal_by0 = 0xFFFF;
+    portal_by1 = 0;
+    for (c = 0; c < 2; c++)
+    {
+        if (!p_on[c])
+            continue;
+        ex = (p_or[c] == 0 || p_or[c] == 2) ? (u16)(p_tx[c] + STRIP - 1)
+                                            : p_tx[c];
+        ey = (p_or[c] == 0 || p_or[c] == 2) ? p_ty[c]
+                                            : (u16)(p_ty[c] + STRIP - 1);
+        if (p_tx[c] < portal_bx0)
+            portal_bx0 = p_tx[c];
+        if (ex > portal_bx1)
+            portal_bx1 = ex;
+        if (p_ty[c] < portal_by0)
+            portal_by0 = p_ty[c];
+        if (ey > portal_by1)
+            portal_by1 = ey;
+    }
+}
 
 /* The 16-entry transform LUT (INV-ENG-003) — THE only teleport math.
  * v' = v_n*n_out + v_t*(-t_out); rows generated from n/t bases, verified:
@@ -130,6 +166,7 @@ void portal_init(void)
     p_ty[0] = 0;
     p_ty[1] = 0;
     p_any = 0;
+    rebbox();
 #ifdef TEST_BUILD
     dbg_mirror();
 #endif
@@ -145,26 +182,24 @@ static u8 horiz(u8 o)
     return (u8)(o == 0 || o == 2); /* floor/ceiling: strip runs along x */
 }
 
+/* does color c's strip cover this tile? (c must be placed) */
+static u8 cell_of(u8 c, u16 tx, u16 ty)
+{
+    if (horiz(p_or[c]))
+        return (u8)(ty == p_ty[c] && tx >= p_tx[c] &&
+                    tx < (u16)(p_tx[c] + STRIP));
+    return (u8)(tx == p_tx[c] && ty >= p_ty[c] &&
+                ty < (u16)(p_ty[c] + STRIP));
+}
+
 u8 portal_cell(u16 tx, u16 ty)
 {
     u8 c;
     if (!p_any)
         return 0;
     for (c = 0; c < 2; c++)
-    {
-        if (!p_on[c])
-            continue;
-        if (horiz(p_or[c]))
-        {
-            if (ty == p_ty[c] && tx >= p_tx[c] && tx < (u16)(p_tx[c] + STRIP))
-                return 1;
-        }
-        else
-        {
-            if (tx == p_tx[c] && ty >= p_ty[c] && ty < (u16)(p_ty[c] + STRIP))
-                return 1;
-        }
-    }
+        if (p_on[c] && cell_of(c, tx, ty))
+            return 1;
     return 0;
 }
 
@@ -236,6 +271,7 @@ void portal_clear(void)
         }
     }
     p_any = 0;
+    rebbox();
     ent_wake_all(); /* solidity restored under any crate in an opening */
 #ifdef TEST_BUILD
     dbg_mirror();
@@ -247,42 +283,89 @@ void portal_clear(void)
  * tile must be solid BRASS; every front tile (strip + outward normal)
  * must be collision-empty and entity-free; no overlap with the other
  * portal's strip. `self` = color being validated (its own current cells
- * read as raw brass already since attrs come from the raw map). */
-static u8 strip_valid(u8 self, u16 sx, u16 sy, u8 orient)
+ * read as raw brass already since attrs come from the raw map).
+ *
+ * ZERO per-tile calls (D-001 after profiling: the call-per-tile version
+ * measured ~160 scanlines — tcc816 calls cost ~1k cycles): direct indexed
+ * ROM reads with a constant front-cell offset, one other-portal rect test,
+ * one live-list entity rect scan. */
+static u8 strip_valid(u8 self, u16 sx, u16 sy, u8 orient, u8 self_ent)
 {
     u8 k;
-    u16 tx, ty, fx, fy;
+    u16 idx;
     u16 a;
     u8 other = (u8)(self ^ 1);
-    s8 nx = nx_of[orient];
-    s8 ny = ny_of[orient];
     u8 hz = horiz(orient);
+    u16 x1 = hz ? (u16)(sx + STRIP - 1) : sx; /* strip end, inclusive */
+    u16 y1 = hz ? sy : (u16)(sy + STRIP - 1);
+    s16 foff;      /* front cell = strip cell + this map-index offset */
+    u16 rx0, ry0, rx1, ry1; /* strip+front union rect */
+
+    /* conservative bounds: the room border is always solid hull, so a
+     * valid strip never touches it and every +-1 neighbor stays in range */
+    if (sx < 1 || sy < 1 || x1 > 126 || y1 > 62)
+        return 0;
+
+    if (orient == 0)
+        foff = -128;
+    else if (orient == 2)
+        foff = 128;
+    else if (orient == 1)
+        foff = 1;
+    else
+        foff = -1;
+
+    idx = (u16)((sy << 7) + sx);
     for (k = 0; k < STRIP; k++)
     {
-        tx = hz ? (u16)(sx + k) : sx;
-        ty = hz ? sy : (u16)(sy + k);
-        fx = (u16)(tx + nx);
-        fy = (u16)(ty + ny);
-        a = room_attr_raw(tx, ty);
+        a = room01_att[room01_map[idx] & 0x3FF];
         if (ATTR_COL(a) == COL_EMPTY || ATTR_MAT(a) != MAT_BRASS)
             return 0;
-        if (ATTR_COL(room_attr_raw(fx, fy)) != COL_EMPTY)
+        a = room01_att[room01_map[(u16)(idx + foff)] & 0x3FF];
+        if (ATTR_COL(a) != COL_EMPTY)
             return 0;
-        if (p_on[other])
-        {
-            /* the other portal may not share strip or front cells */
-            if (portal_cell(tx, ty) || portal_cell(fx, fy))
-                return 0;
-        }
-        if (ent_occupies_tile(tx, ty) || ent_occupies_tile(fx, fy))
+        idx = (u16)(idx + (hz ? 1 : 128));
+    }
+
+    /* strip+front union rect (front is one cell along the normal) */
+    rx0 = sx;
+    ry0 = sy;
+    rx1 = x1;
+    ry1 = y1;
+    if (orient == 0)
+        ry0--;
+    else if (orient == 2)
+        ry1++;
+    else if (orient == 1)
+        rx1++;
+    else
+        rx0--;
+
+    if (p_on[other])
+    {
+        /* the OTHER portal's strip may not intersect our union rect.
+         * (Never portal_cell here: it sees BOTH portals, so a placed
+         * portal would invalidate ITSELF at teleport revalidation — the
+         * bug that silently refused every transit.) */
+        u16 ox1 = horiz(p_or[other]) ? (u16)(p_tx[other] + STRIP - 1)
+                                     : p_tx[other];
+        u16 oy1 = horiz(p_or[other]) ? p_ty[other]
+                                     : (u16)(p_ty[other] + STRIP - 1);
+        if (p_tx[other] <= rx1 && ox1 >= rx0 && p_ty[other] <= ry1 &&
+            oy1 >= ry0)
             return 0;
     }
+
+    if (ent_occupies_rect(rx0, ry0, rx1, ry1, self_ent))
+        return 0;
     return 1;
 }
 
-u8 portal_try_place(u8 color, u16 tx, u16 ty, u8 orient)
+static const s8 slide[5] = {0, -1, 1, -2, 2}; /* FILE scope: the prophet
+                                 function-scope-static placement trap */
+
+u8 portal_try_place(u8 color, u16 tx, u16 ty, u8 orient, u8 self_ent)
 {
-    static const s8 slide[5] = {0, -1, 1, -2, 2};
     u8 s;
     u8 was_on = p_on[color];
     u16 old_tx = p_tx[color];
@@ -301,7 +384,7 @@ u8 portal_try_place(u8 color, u16 tx, u16 ty, u8 orient)
             sx = tx;
             sy = (u16)(ty - 2 + slide[s]);
         }
-        if (strip_valid(color, sx, sy, orient))
+        if (strip_valid(color, sx, sy, orient, self_ent))
         {
             /* commit: erase the old cells first (refiring moves it) */
             if (was_on)
@@ -317,6 +400,7 @@ u8 portal_try_place(u8 color, u16 tx, u16 ty, u8 orient)
             p_tx[color] = sx;
             p_ty[color] = sy;
             p_or[color] = orient;
+            rebbox();
             refresh(color);
             ent_wake_all(); /* the world's solidity changed under crates */
 #ifdef TEST_BUILD
@@ -341,22 +425,27 @@ static s16 mterm(s8 m, s16 v)
     return 0;
 }
 
-u8 portal_check(s32 *mx, s32 *my, s16 *mvx, s16 *mvy, u8 *cool, u8 w, u8 h)
+void portal_cool(u8 *cool)
+{
+    if (*cool)
+        (*cool)--;
+}
+
+u8 portal_check(u8 axis, s32 *mx, s32 *my, s16 *mvx, s16 *mvy, u8 *cool,
+                u8 w, u8 h, u8 self_ent)
 {
     u8 c, o, in_or, out_or, k;
     s16 cx, cy;
     s16 zx0, zy0;
     s16 d;
+    s16 lead;
     s16 icx, icy, ocx, ocy; /* in/out portal center points (on the plane) */
     s16 nvx, nvy;
     s16 push;
     s16 ecx, ecy;
 
     if (*cool)
-    {
-        (*cool)--;
         return 0;
-    }
     if (!p_on[0] || !p_on[1])
         return 0;
 
@@ -368,30 +457,61 @@ u8 portal_check(s32 *mx, s32 *my, s16 *mvx, s16 *mvy, u8 *cool, u8 w, u8 h)
         in_or = p_or[c];
         zx0 = (s16)(p_tx[c] << 3);
         zy0 = (s16)(p_ty[c] << 3);
-        if (horiz(in_or))
+        if (axis == 1 && horiz(in_or))
         {
-            if (cx < zx0 || cx >= (s16)(zx0 + 48) || cy < zy0 || cy >= (s16)(zy0 + 8))
+            /* floor/ceiling: tangential = center x vs the 48px strip;
+             * radial = the LEADING y edge inside the 8px opening */
+            if (cx < zx0 || cx >= (s16)(zx0 + 48))
                 continue;
-            if (in_or == 0 && *mvy <= 0)
-                continue; /* floor portal: must be moving down into it */
-            if (in_or == 2 && *mvy >= 0)
+            if (in_or == 0)
+            {
+                if (*mvy <= 0)
+                    continue; /* enter a floor portal moving down */
+                lead = (s16)((s16)(*my >> 8) + h);
+                if (lead <= zy0 || lead > (s16)(zy0 + 8))
+                    continue;
+            }
+            else
+            {
+                if (*mvy >= 0)
+                    continue;
+                lead = (s16)(*my >> 8);
+                if (lead < zy0 || lead >= (s16)(zy0 + 8))
+                    continue;
+            }
+        }
+        else if (axis == 0 && !horiz(in_or))
+        {
+            if (cy < zy0 || cy >= (s16)(zy0 + 48))
                 continue;
+            if (in_or == 3)
+            {
+                if (*mvx <= 0)
+                    continue; /* enter a west-facing portal moving right */
+                lead = (s16)((s16)(*mx >> 8) + w);
+                if (lead <= zx0 || lead > (s16)(zx0 + 8))
+                    continue;
+            }
+            else
+            {
+                if (*mvx >= 0)
+                    continue;
+                lead = (s16)(*mx >> 8);
+                if (lead < zx0 || lead >= (s16)(zx0 + 8))
+                    continue;
+            }
         }
         else
-        {
-            if (cx < zx0 || cx >= (s16)(zx0 + 8) || cy < zy0 || cy >= (s16)(zy0 + 48))
-                continue;
-            if (in_or == 1 && *mvx >= 0)
-                continue; /* right-facing wall: enter moving left */
-            if (in_or == 3 && *mvx <= 0)
-                continue;
-        }
+            continue;
 
-        /* re-validate BOTH portals at teleport time (INV-ENG-004) */
-        if (!strip_valid(c, p_tx[c], p_ty[c], p_or[c]))
-            return 0;
+        /* INV-ENG-004 teleport revalidation, EXIT side: don't eject into
+         * an occupied/blocked opening. The ENTRY side is skipped by
+         * reasoned refinement (INVARIANTS change log 2026-07-12): its
+         * plane was just crossed, terrain is immutable, and an entity
+         * behind the mover cannot endanger a transit already through —
+         * while the second strip_valid cost measured transit-frame lag. */
         o = (u8)(c ^ 1);
-        if (!strip_valid(o, p_tx[o], p_ty[o], p_or[o]))
+        if (!strip_valid(o, p_tx[o], p_ty[o], p_or[o], self_ent))
             return 0;
         out_or = p_or[o];
 

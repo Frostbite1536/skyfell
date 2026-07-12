@@ -55,6 +55,7 @@
 #define THROW_VY -0x0200
 #define GRAB_RANGE 20      /* px from player center to a crate center */
 #define SENTRY_PERIOD 96   /* frames between sentry shots */
+#define SENTRY_RANGE 224   /* px: fires only with Wren inside ~a screen */
 #define SSHOT_SPD 0x0200   /* 2 px/f sentry shot */
 #define SHOT_BOX 6         /* shots use a 6x6 box */
 

@@ -6,7 +6,7 @@
 
 **Vision**: A portal-gun puzzle-platformer/Metroidvania where portals conserve momentum and — in special Mode 7 chambers — redefine gravity, rotating the whole room around the player. Success = a ROM a stranger can download, run in an emulator, and have fun with for 30+ minutes.
 
-**Current Phase**: Phase 0 (not started — planning complete 2026-07-07)
+**Current Phase**: Phase 3 (gravity chambers) — Phases 0-2 complete (see per-phase status)
 
 **Milestone map**:
 
@@ -81,8 +81,8 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 
 ### Success Criteria
 
-- [x] `test_walk.lua`: golden walk distance EXACT (61776 subpx after 60 held frames + glide); wall pins exactly at x=16
-- [x] `test_jump.lua`: golden apex EXACT (py 94408 = 49.2px rise), exact floor re-contact, variable-height tap proven
+- [x] `test_walk.lua`: golden walk distance EXACT (154568 subpx after 60 held frames + glide on the gantry runway); wall pins exactly at x=16
+- [x] `test_jump.lua`: golden apex EXACT (py 97888 = 35.6px rise, the GDD feel), exact floor re-contact, variable-height tap proven
 - [x] `test_replay.lua`: same script twice ⇒ bit-identical px/py/vx/vy/fsm at 3 checkpoints (INV-ENG-002 established, green forever)
 - [x] 60fps sustained: dbg_lag==0 asserted across every riding test (walk/jump/replay/room streaming); drain-start scanline measured v=230 (recorded in CONTINUATION.md + vblank.c)
 
@@ -90,19 +90,19 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 
 ## Phase 2: The Rift Gun
 
-**Status**: 📋 Planned
+**Status**: ✅ Complete 2026-07-12 (cold-clean gate 9/9) — deviations noted per feature
 
 **Goal**: Two linked portals with honest momentum. The moment-to-moment toy must be fun in one room before any level design happens.
 
 ### Included Features
 
-- [ ] Aiming: D-pad direction + R hold = 8-way aim lock; Y fires current color, X toggles blue/gold, Select recalls both portals
-- [ ] Portal shot: 4px/f straight projectile; places a portal on the first **brass**-material surface with 3-metatile clearance; rejects occupied/undersized targets with a fizzle
-- [ ] Portal state: max 1 blue + 1 gold globally (INV-ENG-004); 48px openings on any axis-aligned surface (4 orientations only, D-003); rendered as animated BG tiles (palette-cycled shimmer) + 2 sprite caps
-- [ ] Teleport: player/objects crossing the plane transform position+velocity via the 16-entry orientation LUT (INV-ENG-003); 8-frame re-entry cooldown; camera snap with 4-frame ease; speed cap 6px/f
-- [ ] Crate entity: pushable, grabbable (A), teleportable, lands on switches
-- [ ] Sentry enemy: fixed turret, straight shots; shots teleport through portals — reflect them back to kill it
-- [ ] Entity pool (16 slots, function-pointer update table)
+- [x] Aiming: D-pad + R = 8-way aim lock w/ reticle sprite; Y fires, X toggles, Select recalls, A grabs/throws
+- [x] Portal shot: 4px/f projectile entity; places on the first brass face it crosses (orient from crossing axis), 6-tile strip snaps +-2; rejects non-brass/undersized/occupied (dbg_fizz counts)
+- [x] Portal state: 1 blue + 1 gold (INV-ENG-004); 48px openings, 4 orientations (D-003); rendered as BG overlay tiles (cap/body + flips; VRAM-asserted) — shimmer + sprite caps deferred to the Phase 3.5 polish pass
+- [x] Teleport: LEADING-EDGE plane crossing per axis, pos+vel through the 16-entry LUT (INV-ENG-003), 8f cooldown, 6px/f cap + 1px/f eject; camera snap-eases at 16px/f (X) / 8px/f (Y)
+- [x] Crate entity: pushable, grabbable/throwable (A), teleportable, sleeps at rest (frame budget); switches arrive with Phase 3.5 content
+- [x] Sentry: fixed turret w/ activation radius (224px), 2px/f shots that ride portals; the routed shot kills it (test_sentry)
+- [x] Entity pool: 16 slots, SoA + compact live/crate lists; if-else dispatch (tcc816 u8-switch trap) instead of function pointers
 
 ### Explicit Exclusions
 
@@ -110,10 +110,10 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 
 ### Success Criteria
 
-- [ ] `test_fling.lua`: enter floor portal falling at v ⇒ exit wall portal at same |v| (±1 subpixel), sails the gap the design predicts
-- [ ] `test_portal_rules.lua`: placement rejected on non-brass, undersized, and entity-occupied surfaces; third shot of same color moves the old portal
-- [ ] `test_sentry.lua`: scripted portal pair routes a sentry shot back into it; sentry dies
-- [ ] Replay test still bit-identical; frame budget still green
+- [x] `test_fling.lua`: terminal-velocity entry => exit at EXACTLY -|v| (0x400), sails the gap; portal render VRAM-asserted
+- [x] `test_portal_rules.lua`: non-brass/undersized/entity-occupied rejected (fizzle counted); refire moves the portal and restores old cells (VRAM-asserted)
+- [x] `test_sentry.lua`: tower-east -> pillar-west pair routes the shot into the sentry's back; dies; kill phase lag==0
+- [x] Replay bit-identical; frame budget green (dbg_lag==0 asserted per test; the Phase 2 frame-budget program is in DECISIONS — measured with the new dbg_mainv scanline probe)
 
 ---
 

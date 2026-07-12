@@ -19,10 +19,21 @@ phase, gating each on `make test` on a clean build, **committing per unit and pu
 per phase** (the Phase 0 pattern you set up — remote + CI green as proof). If you'd
 rather I stop pushing overnight, say so and I'll keep commits local.
 
-### 3. Feel gates that only you can judge (accumulating during the run)
+### 3. INV-ENG-004 refinement made on judgment — please ratify
+Teleport now revalidates only the EXIT portal (entry was just crossed; terrain
+is immutable in Phase 2; the redundant check cost measured transit-frame lag).
+Full reasoning in INVARIANTS.md's change log. **Revisit before magnet-plates
+(Phase 5) — moving portals break the "terrain is immutable" premise.**
+
+### 4. Feel gates that only you can judge (accumulating during the run)
 - Phase 1: run/jump feel — every knob in `src/game/tuning.h` (accel, friction, jump
-  impulse, gravity, coyote/buffer frames). I tune to Mesen playback + test numbers;
-  your hands decide.
+  impulse, gravity, coyote/buffer frames). Tuned to the GDD movement-feel spec
+  (run 1.5 px/f, apex ~2.2 metatiles); your hands decide.
+- Phase 2: the Rift Gun in YOUR hands (`make run`): R+dpad aim, Y fire, X toggle
+  blue/gold, Select recall, A grab/throw the crate. Fling feel knobs: TP_SPEED_CAP,
+  TP_EJECT_MIN, TP_COOLDOWN, SENTRY_RANGE/PERIOD, CRATE_PUSH/THROW_* (tuning.h).
+  Known visual gap on purpose: portals are plain slits (shimmer + sprite caps are
+  the Phase 3.5 polish pass).
 - Phase 3 gate (ROADMAP): "the spin feels *good*" — subjective on purpose. Chamber
   rotation duration/easing knobs land in tuning.h; fallback design (instant 90° cut +
   tumble) stays on the shelf per D-004.

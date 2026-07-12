@@ -54,5 +54,7 @@ dbg_ewatch    dsw 1  ; +58 u16  watched slot | state<<8 (bit15 = live)
 dbg_fizz      dsw 1  ; +60 u16  portal placement rejections (portal.c)
 dbg_mainv     dsw 1  ; +62 u16  scanline where the main loop finished its
                      ;          frame work (frame-cost probe; <225 = healthy)
-; --- append new fields at +64; never repack (INV-TEST-001) ---
+dbg_prof0     dsw 1  ; +64 u16  profiling scratch: scanline at a bracketed
+dbg_prof1     dsw 1  ; +66 u16  code path's entry (+64) and exit (+66)
+; --- append new fields at +68; never repack (INV-TEST-001) ---
 .ENDS

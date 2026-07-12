@@ -26,13 +26,23 @@ static u8 e_cool[ENT_MAX]; /* per-object teleport cooldown */
 static u8 e_slp[ENT_MAX]; /* crate at rest: full physics skipped (the frame
                              was measured within ~2k cycles of the lag cliff
                              on seam frames — resting crates must be free) */
-static u8 r_hid[ENT_MAX]; /* render: slot already hidden, skip the store */
 static u8 carried; /* crate slot in hand, 0xFF none */
 
 /* compact crate list — the player clamps run per frame and must not scan
  * 16 slots; rebuilt once per ent_update */
 static u8 crate_slots[ENT_MAX];
 static u8 crate_cnt;
+/* compact live list — the portal validator probes ~24 tiles per strip
+ * check; a 16-slot scan per tile cost measured lag frames */
+static u8 live_slots[ENT_MAX];
+static u8 live_cnt;
+
+/* hide a slot's OAM sprite NOW (called at despawn — the render loop walks
+ * only LIVE slots; the old 16-slot hide-scan cost measured scanlines) */
+static void ent_hide_oam(u8 i)
+{
+    oamMemory[(u16)(((2 + i) << 2) + 1)] = 0xF0;
+}
 
 /* box size per type (w==h for all entities) */
 static u8 ent_w(u8 t)
@@ -48,9 +58,15 @@ static void rebuild_crate_list(void)
 {
     u8 i;
     crate_cnt = 0;
+    live_cnt = 0;
     for (i = 0; i < ENT_MAX; i++)
+    {
+        if (e_type[i] == ET_NONE)
+            continue;
+        live_slots[live_cnt++] = i;
         if (e_type[i] == ET_CRATE && e_st[i] != 2)
             crate_slots[crate_cnt++] = i;
+    }
 }
 
 void ent_wake_all(void)
@@ -74,10 +90,11 @@ void ent_clear_all(void)
         e_tmr[i] = 0;
         e_cool[i] = 0;
         e_slp[i] = 0;
-        r_hid[i] = 0;
+        ent_hide_oam(i);
     }
     carried = 0xFF;
     crate_cnt = 0;
+    live_cnt = 0;
 #ifdef TEST_BUILD
     dbg_entn = 0;
 #endif
@@ -99,8 +116,7 @@ u8 ent_spawn(u8 type, u16 x, u16 y)
             e_tmr[i] = 0;
             e_cool[i] = 0;
             e_slp[i] = 0;
-            if (type == ET_CRATE)
-                rebuild_crate_list();
+            rebuild_crate_list();
             return i;
         }
     }
@@ -140,22 +156,24 @@ void ent_room_init(u8 room)
     ent_set_face(s, 1);                     /* fires left, at the tower */
 }
 
-u8 ent_occupies_tile(u16 tx, u16 ty)
+u8 ent_occupies_rect(u16 tx0, u16 ty0, u16 tx1, u16 ty1, u8 exclude)
 {
-    u8 i;
-    s16 x0 = (s16)(tx << 3);
-    s16 y0 = (s16)(ty << 3);
+    u8 k, i;
+    s16 x0 = (s16)(tx0 << 3);
+    s16 y0 = (s16)(ty0 << 3);
+    s16 x1 = (s16)((tx1 + 1) << 3); /* exclusive px edge */
+    s16 y1 = (s16)((ty1 + 1) << 3);
     s16 ex, ey;
     u8 w;
-    for (i = 0; i < ENT_MAX; i++)
+    for (k = 0; k < live_cnt; k++)
     {
-        if (e_type[i] == ET_NONE || e_st[i] == 2)
+        i = live_slots[k];
+        if (i == exclude || e_st[i] == 2)
             continue;
         w = ent_w(e_type[i]);
         ex = (s16)(e_x[i] >> 8);
         ey = (s16)(e_y[i] >> 8);
-        if (ex < (s16)(x0 + 8) && (s16)(ex + w) > x0 &&
-            ey < (s16)(y0 + 8) && (s16)(ey + w) > y0)
+        if (ex < x1 && (s16)(ex + w) > x0 && ey < y1 && (s16)(ey + w) > y0)
             return 1;
     }
     return 0;
@@ -163,9 +181,20 @@ u8 ent_occupies_tile(u16 tx, u16 ty)
 
 /* --- room collision for an entity-sized box (same sweep shape as the
  * player's, generalized on w/h) --- */
+extern u16 room01_map[]; /* direct reads — the call chain was profiled lag */
+extern u16 room01_att[];
+
 static u8 solid_at(s16 tx, s16 ty)
 {
-    return (u8)(ATTR_COL(room_attr((u16)tx, (u16)ty)) != COL_EMPTY);
+    u16 a;
+    if ((u16)tx >= 128 || (u16)ty >= 64)
+        return 1;
+    if (portal_any && (u16)tx >= portal_bx0 && (u16)tx <= portal_bx1 &&
+        (u16)ty >= portal_by0 && (u16)ty <= portal_by1 &&
+        portal_cell((u16)tx, (u16)ty))
+        return 0;
+    a = room01_att[room01_map[(u16)(((u16)ty << 7) + (u16)tx)] & 0x3FF];
+    return (u8)(ATTR_COL(a) != COL_EMPTY);
 }
 
 static u8 solid_row_w(s16 x, s16 ty, u8 w)
@@ -250,8 +279,12 @@ static void crate_frame(u8 i)
     if (e_vy[i] > P_TERM_VY)
         e_vy[i] = P_TERM_VY;
 
-    /* X sweep vs room + other crates */
+    /* X move: portal transit first (leading edge), else sweep + clamp */
+    portal_cool(&e_cool[i]);
     e_x[i] += e_vx[i];
+    if (portal_check(0, &e_x[i], &e_y[i], &e_vx[i], &e_vy[i], &e_cool[i],
+                     CRATE_W, CRATE_H, i))
+        return; /* rode a wall rift */
     x = (s16)(e_x[i] >> 8);
     y = (s16)(e_y[i] >> 8);
     if (e_vx[i] > 0)
@@ -275,8 +308,11 @@ static void crate_frame(u8 i)
     crate_clamp_x(i, &x, &e_vx[i]);
     e_x[i] = (s32)x << 8;
 
-    /* Y sweep vs room (crates don't stack in v1 — pushing resolves) */
+    /* Y move: same order (crates don't stack in v1 — pushing resolves) */
     e_y[i] += e_vy[i];
+    if (portal_check(1, &e_x[i], &e_y[i], &e_vx[i], &e_vy[i], &e_cool[i],
+                     CRATE_W, CRATE_H, i))
+        return; /* rode a floor/ceiling rift */
     x = (s16)(e_x[i] >> 8);
     y = (s16)(e_y[i] >> 8);
     if (e_vy[i] > 0)
@@ -300,9 +336,6 @@ static void crate_frame(u8 i)
     }
     e_y[i] = (s32)y << 8;
 
-    portal_check(&e_x[i], &e_y[i], &e_vx[i], &e_vy[i], &e_cool[i],
-                 CRATE_W, CRATE_H);
-
     /* landed with no drift -> sleep until pushed/grabbed/portal change */
     if (landed && e_vx[i] == 0 && e_cool[i] == 0)
         e_slp[i] = 1;
@@ -320,11 +353,14 @@ static u8 shot_frame(u8 i)
 
     ox = (s16)((s16)(e_x[i] >> 8) + (SHOT_BOX >> 1));
     oy = (s16)((s16)(e_y[i] >> 8) + (SHOT_BOX >> 1));
+    portal_cool(&e_cool[i]);
     e_x[i] += e_vx[i];
     e_y[i] += e_vy[i];
 
-    if (portal_check(&e_x[i], &e_y[i], &e_vx[i], &e_vy[i], &e_cool[i],
-                     SHOT_BOX, SHOT_BOX))
+    if (portal_check(0, &e_x[i], &e_y[i], &e_vx[i], &e_vy[i], &e_cool[i],
+                     SHOT_BOX, SHOT_BOX, i) ||
+        portal_check(1, &e_x[i], &e_y[i], &e_vx[i], &e_vy[i], &e_cool[i],
+                     SHOT_BOX, SHOT_BOX, i))
         return 0; /* rode the rift */
 
     x = (s16)((s16)(e_x[i] >> 8) + (SHOT_BOX >> 1));
@@ -335,8 +371,10 @@ static u8 shot_frame(u8 i)
     /* sentry shots kill their own kind (the reflect solve) + fizzle on Wren */
     if (t == ET_SSHOT)
     {
-        for (j = 0; j < ENT_MAX; j++)
+        u8 kk;
+        for (kk = 0; kk < live_cnt; kk++)
         {
+            j = live_slots[kk];
             if (e_type[j] == ET_SENTRY && !(e_st[j] & 0x80))
             {
                 s16 sx = (s16)(e_x[j] >> 8);
@@ -345,6 +383,7 @@ static u8 shot_frame(u8 i)
                 {
                     e_st[j] |= 0x80; /* the sentry dies to its own shot */
                     e_type[i] = ET_NONE;
+                    ent_hide_oam(i);
                     return 1;
                 }
             }
@@ -353,6 +392,7 @@ static u8 shot_frame(u8 i)
             y >= player_py() && y < (s16)(player_py() + PB_H))
         {
             e_type[i] = ET_NONE; /* no damage in Phase 2 (ROADMAP) */
+            ent_hide_oam(i);
             return 1;
         }
     }
@@ -369,12 +409,13 @@ static u8 shot_frame(u8 i)
             oty = (s16)(oy >> 3);
             if (otx != tx && !solid_at(otx, ty))
                 portal_try_place((u8)(t == ET_SHOT_G), (u16)tx, (u16)ty,
-                                 (u8)((e_vx[i] > 0) ? 3 : 1));
+                                 (u8)((e_vx[i] > 0) ? 3 : 1), i);
             else
                 portal_try_place((u8)(t == ET_SHOT_G), (u16)tx, (u16)ty,
-                                 (u8)((e_vy[i] > 0) ? 0 : 2));
+                                 (u8)((e_vy[i] > 0) ? 0 : 2), i);
         }
         e_type[i] = ET_NONE;
+        ent_hide_oam(i);
         return 1;
     }
     return 0;
@@ -383,8 +424,16 @@ static u8 shot_frame(u8 i)
 static void sentry_frame(u8 i)
 {
     u8 s;
+    s16 d;
     if (e_st[i] & 0x80)
         return; /* dead husk */
+    /* activation radius: distant turrets idle (design + frame budget:
+     * a live shot costs real frame time; see the Phase 2 lag program) */
+    d = (s16)(player_px() - (s16)(e_x[i] >> 8));
+    if (d < 0)
+        d = (s16)(-d);
+    if (d > SENTRY_RANGE)
+        return;
     e_tmr[i]++;
     if (e_tmr[i] >= SENTRY_PERIOD)
     {
@@ -408,20 +457,24 @@ static void sentry_frame(u8 i)
 
 void ent_update(void)
 {
-    u8 i;
+    u8 k, i;
     u8 t;
-    for (i = 0; i < ENT_MAX; i++)
+    u8 changed = 0;
+    for (k = 0; k < live_cnt; k++)
     {
+        i = live_slots[k];
         t = e_type[i];
         if (t == ET_NONE)
-            continue;
+            continue; /* died earlier this frame */
         if (t == ET_CRATE)
             crate_frame(i);
         else if (t == ET_SENTRY)
             sentry_frame(i);
-        else
-            shot_frame(i);
+        else if (shot_frame(i))
+            changed = 1; /* a shot despawned this frame */
     }
+    if (changed)
+        rebuild_crate_list(); /* keep the live list honest */
 #ifdef TEST_BUILD
     dbg_entn = ent_count();
     i = (u8)dbg_ewatch;
@@ -431,8 +484,8 @@ void ent_update(void)
         dbg_e0y = (u16)(e_y[i] >> 8);
         dbg_e0vx = (u16)e_vx[i];
         dbg_e0vy = (u16)e_vy[i];
-        dbg_ewatch = (u16)(i | ((u16)e_st[i] << 8) |
-                           ((e_type[i] != ET_NONE) ? 0x8000 : 0));
+        /* low8 slot, high8 = the slot's e_st (sentry: bit7 dead, bit0 face) */
+        dbg_ewatch = (u16)(i | ((u16)e_st[i] << 8));
     }
 #endif
 }
@@ -563,25 +616,18 @@ void ent_grab_toggle(void)
  * sshot 74 (mkobj.py entity band). */
 void ent_render(void)
 {
-    u8 i;
+    u8 k, i;
     u16 o;
     s16 sx, sy;
     u8 t;
     u8 name;
-    for (i = 0; i < ENT_MAX; i++)
+    for (k = 0; k < live_cnt; k++)
     {
+        i = live_slots[k];
         o = (u16)((2 + i) << 2);
         t = e_type[i];
         if (t == ET_NONE)
-        {
-            if (!r_hid[i])
-            {
-                oamMemory[o + 1] = 0xF0;
-                r_hid[i] = 1;
-            }
-            continue;
-        }
-        r_hid[i] = 0;
+            continue; /* died this frame; hidden at despawn */
         if (t == ET_CRATE)
         {
             name = 64;

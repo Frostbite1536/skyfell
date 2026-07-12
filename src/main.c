@@ -55,6 +55,8 @@ extern u16 dbg_e0vy;
 extern u16 dbg_ewatch;
 extern u16 dbg_fizz;
 extern u16 dbg_mainv;
+extern u16 dbg_prof0;
+extern u16 dbg_prof1;
 #endif
 
 int main(void)
@@ -126,9 +128,15 @@ int main(void)
     {
         pad = padsCurrent(0);
         player_update(pad); /* physics + collision + camera follow */
+#ifdef TEST_BUILD
+        dbg_prof0 = vq_scanline(); /* stage bracket: after player */
+#endif
         ent_update();       /* crates, sentries, shots (portal transits) */
         player_render();    /* OAM shadow; the lib ISR DMAs it */
         ent_render();
+#ifdef TEST_BUILD
+        dbg_prof1 = vq_scanline(); /* stage bracket: after entities+render */
+#endif
 
 #ifdef TEST_BUILD
         dbg_poll(); /* Lua test mailbox (dbgcmd.c) — may warp the player */

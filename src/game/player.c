@@ -47,10 +47,23 @@ s16 player_px(void) { return (s16)(px >> 8); }
 s16 player_py(void) { return (s16)(py >> 8); }
 u8 player_face(void) { return face; }
 
+extern u16 room01_map[]; /* rooms.asm — collision reads the map DIRECTLY:
+                            the room_attr call chain cost ~40 scanlines per
+                            frame across ~25 queries (profiled; D-001) */
+extern u16 room01_att[];
+
 static u8 solid(s16 tx, s16 ty)
 {
+    u16 a;
     /* negative coords wrap huge as u16 -> out of bounds -> solid */
-    return (u8)(ATTR_COL(room_attr((u16)tx, (u16)ty)) != COL_EMPTY);
+    if ((u16)tx >= 128 || (u16)ty >= 64)
+        return 1;
+    if (portal_any && (u16)tx >= portal_bx0 && (u16)tx <= portal_bx1 &&
+        (u16)ty >= portal_by0 && (u16)ty <= portal_by1 &&
+        portal_cell((u16)tx, (u16)ty))
+        return 0; /* an open rift is walk-through */
+    a = room01_att[room01_map[(u16)(((u16)ty << 7) + (u16)tx)] & 0x3FF];
+    return (u8)(ATTR_COL(a) != COL_EMPTY);
 }
 
 /* any solid tile across the box's horizontal span at tile row ty? */
@@ -197,6 +210,7 @@ void player_update(u16 pad)
     s16 t;
     u8 press_b = 0;
     u8 oncrate;
+    u8 tp;
 
     aiming = (u8)((pad & KEY_R) ? 1 : 0);
 
@@ -215,9 +229,11 @@ void player_update(u16 pad)
             vx = -P_WALK_MAX;
         face = 1;
     }
-    else
+    else if (grounded)
     {
-        /* friction toward zero — branch per sign, never multiply (tcc816) */
+        /* friction toward zero — GROUND only (air keeps momentum: portals
+         * conserve |v|, the GDD's first pillar). Branch per sign, never
+         * multiply (tcc816). */
         if (vx > 0)
         {
             vx -= P_FRICTION;
@@ -268,64 +284,77 @@ void player_update(u16 pad)
             vy = P_TERM_VY;
     }
 
-    /* --- X sweep (max speed < 8px/f, so one tile boundary per frame) --- */
+    /* --- movement, one axis at a time; the portal transit check runs on
+     * each axis BETWEEN motion and the solid sweep (leading-edge semantics:
+     * the opening is 8px deep with solid behind it — clamping first would
+     * pin a tall box before its edge crosses the plane) --- */
+    portal_cool(&tp_cool);
+    tp = 0;
     px += vx;
-    x = (s16)(px >> 8);
-    y = (s16)(py >> 8);
-    if (vx > 0)
+    if (portal_check(0, &px, &py, &vx, &vy, &tp_cool, PB_W, PB_H, 0xFF))
+        tp = 1; /* rode a wall rift: position+velocity rewritten */
+    else
     {
-        t = (s16)((s16)(x + PB_W - 1) >> 3);
-        if (solid_col(t, y))
+        x = (s16)(px >> 8);
+        y = (s16)(py >> 8);
+        if (vx > 0)
         {
-            x = (s16)((t << 3) - PB_W);
-            px = (s32)x << 8;
-            vx = 0;
+            t = (s16)((s16)(x + PB_W - 1) >> 3);
+            if (solid_col(t, y))
+            {
+                x = (s16)((t << 3) - PB_W);
+                px = (s32)x << 8;
+                vx = 0;
+            }
         }
-    }
-    else if (vx < 0)
-    {
-        t = (s16)(x >> 3);
-        if (solid_col(t, y))
+        else if (vx < 0)
         {
-            x = (s16)((t + 1) << 3);
-            px = (s32)x << 8;
-            vx = 0;
+            t = (s16)(x >> 3);
+            if (solid_col(t, y))
+            {
+                x = (s16)((t + 1) << 3);
+                px = (s32)x << 8;
+                vx = 0;
+            }
         }
-    }
-    /* crates are pushable walls (entity.c clamps + imparts push velocity) */
-    ent_clamp_x(&px, &vx, (s16)(py >> 8), PB_W, PB_H, grounded);
-
-    /* --- Y sweep --- */
-    py += vy;
-    x = (s16)(px >> 8);
-    y = (s16)(py >> 8);
-    if (vy > 0)
-    {
-        t = (s16)((s16)(y + PB_H - 1) >> 3);
-        if (solid_row(x, t))
-        {
-            y = (s16)((t << 3) - PB_H);
-            py = (s32)y << 8;
-            vy = 0;
-        }
-    }
-    else if (vy < 0)
-    {
-        t = (s16)(y >> 3);
-        if (solid_row(x, t))
-        {
-            y = (s16)((t + 1) << 3);
-            py = (s32)y << 8;
-            vy = 0;
-        }
+        /* crates are pushable walls (entity.c clamps + imparts push) */
+        ent_clamp_x(&px, &vx, (s16)(py >> 8), PB_W, PB_H, grounded);
     }
 
-    /* landing on / bonking a crate */
-    oncrate = ent_clamp_y(&py, &vy, (s16)(px >> 8), PB_W, PB_H);
-
-    /* --- portal transit (the whole point) --- */
-    if (portal_check(&px, &py, &vx, &vy, &tp_cool, PB_W, PB_H))
-        oncrate = 0; /* always airborne out of a rift */
+    oncrate = 0;
+    if (!tp)
+    {
+        py += vy;
+        if (portal_check(1, &px, &py, &vx, &vy, &tp_cool, PB_W, PB_H, 0xFF))
+            tp = 1; /* rode a floor/ceiling rift */
+        else
+        {
+            x = (s16)(px >> 8);
+            y = (s16)(py >> 8);
+            if (vy > 0)
+            {
+                t = (s16)((s16)(y + PB_H - 1) >> 3);
+                if (solid_row(x, t))
+                {
+                    y = (s16)((t << 3) - PB_H);
+                    py = (s32)y << 8;
+                    vy = 0;
+                }
+            }
+            else if (vy < 0)
+            {
+                t = (s16)(y >> 3);
+                if (solid_row(x, t))
+                {
+                    y = (s16)((t + 1) << 3);
+                    py = (s32)y << 8;
+                    vy = 0;
+                }
+            }
+            /* landing on / bonking a crate */
+            oncrate = ent_clamp_y(&py, &vy, (s16)(px >> 8), PB_W, PB_H);
+        }
+    }
 
     /* --- ground probe (one px below the feet) + coyote --- */
     x = (s16)(px >> 8);

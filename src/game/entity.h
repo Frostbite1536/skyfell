@@ -26,8 +26,9 @@ void ent_render(void);               /* OAM sprites 2..17 */
 u8 ent_count(void);
 
 /* portal placement validator support (INV-ENG-004): does any live body
- * overlap this tile? */
-u8 ent_occupies_tile(u16 tx, u16 ty);
+ * except `exclude` (0xFF = none) overlap the INCLUSIVE tile rect? One pass
+ * over the live list — the per-tile variant cost measured lag frames. */
+u8 ent_occupies_rect(u16 tx0, u16 ty0, u16 tx1, u16 ty1, u8 exclude);
 
 /* player coupling (called from player.c):
  *  - clamp_x/clamp_y treat crates as walls for the mover's box; clamp_x

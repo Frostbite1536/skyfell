@@ -67,7 +67,7 @@ void dbg_poll(void)
         else
             portal_try_place((u8)(dbg_arg0 & 1), (u16)((u8)dbg_arg1),
                              (u16)((u8)(dbg_arg1 >> 8)),
-                             (u8)((dbg_arg0 >> 8) & 3));
+                             (u8)((dbg_arg0 >> 8) & 3), 0xFF);
     }
     else if (c == 7)
         dbg_ewatch = dbg_arg0; /* WATCH(slot) — entity mirror at +50..+56 */

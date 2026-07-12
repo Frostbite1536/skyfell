@@ -46,6 +46,15 @@ Context: verified 2026-07-07 — PVSnesLib 4.5.0 released 2025-12-28, MIT, Windo
 
 *(Appended after each phase/milestone: 5 bullets — what changed, new assumptions, new risks.)*
 
+### 2026-07-12 — Phase 2 complete (the Rift Gun), cold-clean 9/9
+- Portals live end to end: shot placement on brass (validator shared with teleport, INV-ENG-004), 16-entry LUT as the only transform (INV-ENG-003), BG-overlay render (VRAM-asserted), momentum conservation EXACT (test_fling: terminal entry ⇒ -0x400 exit), the sentry reflect-kill proven
+- **Teleport semantics settled**: LEADING-EDGE plane crossing checked per axis BETWEEN motion and the solid sweep — center-based zones can't work (an 8px-deep opening backs onto solid; a 30px body pins before its center arrives)
+- **INV-ENG-004 refined** (change log): teleport revalidates the EXIT portal only — entry was just crossed, terrain immutable; revisit at magnet-plates
+- **The frame-budget program** (dbg_mainv scanline probe at +62 made frames measurable): tcc816 calls cost ~1k cycles, so hot paths went call-free — asm seam builders (seams.asm: MVN rows, strided col gather, zero-copy vq_stage/commit), direct-indexed collision reads behind inline portal_any + bounding-box gates, call-free strip validator, compact live/crate entity lists, hide-on-despawn render, crates sleep at rest, sentries idle beyond 224px, vertical camera follows only when grounded (jump-bob also felt wrong), vertical ease 1 row/frame. Idle frame ~68-95 scanlines, events ~200; dbg_lag==0 asserted in every test
+- Air friction removed (ground-only): flung momentum persists — the GDD's first pillar, and what makes the fling golden exact
+- Room gained the brass floor pad, tower, right-wall pillar, and an undersized patch as portal test geometry
+- Follow-ups named: portal shimmer/sprite caps (Phase 3.5 polish); shot_frame cost diet if future scenes stack more movers; ent_render X8 bit when rooms lose 16px borders
+
 ### 2026-07-12 — Phase 1 complete (platformer core), cold-clean 6/6
 - Engine core ported from prophet and re-calibrated on THIS ROM (drain-start v=230 measured; VQ_ENTRY_TAX 640 re-derived, not copied); test_vblank proves throughput/defer/overflow back-pressure
 - Room pipeline live per D-011+D-012 (ASCII grid → .tmj → tmx2snes → baked words + checksum); camera seam-streaming costs 1 col / 2 row pushes per 8px crossing, zero lag frames

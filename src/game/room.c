@@ -63,9 +63,14 @@ u16 room_attr_raw(u16 tx, u16 ty)
 
 u16 room_attr(u16 tx, u16 ty)
 {
-    if (portal_any && portal_cell(tx, ty))
+    /* overlay: two inline gates (flag, then the strips' bounding box)
+     * before any call — this runs ~25x per frame from collision sweeps */
+    if (portal_any && tx >= portal_bx0 && tx <= portal_bx1 &&
+        ty >= portal_by0 && ty <= portal_by1 && portal_cell(tx, ty))
         return 0; /* the opening is walk-through (portal.c owns the plane) */
-    return room_attr_raw(tx, ty);
+    if (tx >= rm_w || ty >= rm_h)
+        return COL_SOLID;
+    return room01_att[room01_map[(u16)(ty << 7) + tx] & 0x3FF];
 }
 
 u16 room_cam_x(void) { return cam_x; }

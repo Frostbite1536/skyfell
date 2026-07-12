@@ -37,7 +37,17 @@ Tests run the **real ROM** in MesenCE headless. The invocation proven in Phase 0
 | +42 | u16 | scanline where the drain last started work (budget calibration) |
 | +44 | u16 | camera x px (room.c) |
 | +46 | u16 | camera y px (room.c) |
-| +48… | — | **append new fields here; never repack** |
+| +48 | u16 | teleports since boot (portal.c) |
+| +50 | u16 | watched entity x px (verb 7 picks the slot) |
+| +52 | u16 | watched entity y px |
+| +54 | u16 | watched entity vx (8.8 bits) |
+| +56 | u16 | watched entity vy (8.8 bits) |
+| +58 | u16 | low8 watched slot, high8 its e_st (sentry: bit7 dead, bit0 face) |
+| +60 | u16 | portal placement rejections (fizzles) |
+| +62 | u16 | scanline where the main loop finished its frame work (<225 healthy) |
+| +64 | u16 | stage bracket: scanline after player_update |
+| +66 | u16 | stage bracket: scanline after entities + renders |
+| +68… | — | **append new fields here; never repack** |
 
 ## Test mailbox verbs (`+36`; game acks by writing 0 back)
 
@@ -46,7 +56,11 @@ Tests run the **real ROM** in MesenCE headless. The invocation proven in Phase 0
 | 1 | RESEED | arg0 = seed lo16, arg1 = seed hi16 (0 = default "SKYF") |
 | 2 | VQ_STRESS | arg0 = n entries (≤24), arg1 = base pattern → n live 2-word VRAM pushes at scratch |
 | 3 | VQ_BUDGET | arg0 = forced drain byte budget (0 = back to measured) |
-| 4 | POS_SET | arg0 = x px, arg1 = y px — force-blank camera warp (player position once Unit C lands; camera follows) |
+| 4 | POS_SET | arg0 = x px, arg1 = y px — places the player (zeroed motion) + force-blank camera warp (which re-zeroes the lag counter) |
+| 5 | ENT_SPAWN | arg0 = type (bit8 = sentry faces left), arg1 = x_meta \| y_meta<<8 |
+| 6 | PORTAL_SET | arg0 = color \| orient<<8 (0xFFFF = recall both), arg1 = tx \| ty<<8 — through THE validator |
+| 7 | WATCH | arg0 = pool slot to mirror at +50..+58 |
+| 8 | ENT_CLEAR | despawn everything |
 
 **VRAM test scratch**: word addresses `0x7C00+` are reserved for tests — no
 game system may ever write there (VQ_STRESS lands its patterns there and Lua
@@ -60,6 +74,6 @@ Stop-code convention: 0 pass · 1 generic · 12 Lua error · 13 body-ended-witho
 
 ## Test inventory (grows per phase — see ROADMAP gates)
 
-Phase 0/1 (LIVE, 6): `test_boot` · `test_room` (pipeline + live seam streaming) · `test_vblank` (drain throughput/defer/overflow) · `test_walk`, `test_jump` (GOLDEN numbers frozen from the ROM 2026-07-12), `test_replay` (INV-ENG-002 — green forever) · Phase 2: `test_fling`, `test_portal_rules`, `test_sentry` · Phase 3: `test_gravity_cycle`, `test_chamber_puzzle` · Phase 4: `test_save_roundtrip`, `test_gate`
+LIVE (9): `test_boot` · `test_room` (pipeline + 4-direction live seam streaming) · `test_vblank` (drain throughput/defer/overflow) · `test_walk`, `test_jump` (GOLDEN numbers frozen from the ROM 2026-07-12), `test_replay` (INV-ENG-002 — green forever) · `test_fling` (exact momentum conservation + portal render), `test_portal_rules` (the INV-ENG-004 validator), `test_sentry` (the reflect kill) · Phase 3: `test_gravity_cycle`, `test_chamber_puzzle` · Phase 4: `test_save_roundtrip`, `test_gate`
 
 Golden values live beside their tests; changing one requires a DECISIONS.md entry. Golden-harvest pattern: a temporary `test_zzz*.lua` probe writes measured values to its artifact dir; freeze them into the real test; delete the probe.
