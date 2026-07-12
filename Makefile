@@ -111,5 +111,11 @@ $(ROMNAME).sfc: $(ROOMSOBJ)
 data.obj: $(GENTILES) $(GENOBJ)
 src/game/room.ps: $(GEN)/rooms.h
 
+# snes_rules tracks NO header dependencies — a tuning.h edit left a stale
+# player.obj in the ROM once (identical goldens exposed it). Coarse but
+# correct: any project header change rebuilds every C translation unit.
+HDRS := $(wildcard src/core/*.h src/game/*.h src/ui/*.h src/audio/*.h)
+$(addsuffix .ps,$(FLAVORPS)): $(HDRS)
+
 clean: cleanBuildRes cleanRom cleanGfx
 	@rm -rf $(GEN) build artifacts

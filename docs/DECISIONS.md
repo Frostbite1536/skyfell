@@ -46,6 +46,16 @@ Context: verified 2026-07-07 — PVSnesLib 4.5.0 released 2025-12-28, MIT, Windo
 
 *(Appended after each phase/milestone: 5 bullets — what changed, new assumptions, new risks.)*
 
+### 2026-07-12 — Phase 1 complete (platformer core), cold-clean 6/6
+- Engine core ported from prophet and re-calibrated on THIS ROM (drain-start v=230 measured; VQ_ENTRY_TAX 640 re-derived, not copied); test_vblank proves throughput/defer/overflow back-pressure
+- Room pipeline live per D-011+D-012 (ASCII grid → .tmj → tmx2snes → baked words + checksum); camera seam-streaming costs 1 col / 2 row pushes per 8px crossing, zero lag frames
+- Wren playable: run/jump/coyote/buffer/variable-height, tuned to the **GDD movement-feel spec** (run 1.5 px/f, gravity 0.1875, terminal 4, apex 35.6px ≈ 2.2 metatiles — slow base movement so 6 px/f portal flings read as dramatic, the momentum pillar). First-cut faster values were replaced pre-push; room01's pit went 3-deep → 2-deep so every jumpable feature clears the real apex (INV-GAME-001).
+- **Golden numbers frozen from the ROM 2026-07-12**: walk60=154568 subpx (from x=512 on the gantry runway), wall pin=4096, jump apex=97888, land=107008 (tuning.h freeze: ACC 0x28 MAX 0x180 FRIC 0x20 GRAV 0x30 JUMP -0x3C0 TERM 0x400) — any change = new DECISIONS entry
+- Adversarial review (13 agents): 8 latent-hazard claims refuted on reachability (recorded as future-phase watch items in JEREMY-INBOX/notes: OAM X8 bit when rooms lose their 16px borders; dropped-push window advance + scroll/defer pairing if per-frame queue traffic ever grows; win_want clamp underflow when a room < 64×32 tiles exists); 1 CONFIRMED coverage gap fixed — test_room now streams all four directions (right/left columns incl. both 32×32 screens, vertical rows via a warp-fall)
+- INV-ENG-002 fence established (test_replay); INV-ENG-005 checksum validates on every room load
+- Build lesson: snes_rules tracks NO header deps — a tuning.h edit shipped a stale player.obj (identical goldens exposed it); Makefile now rebuilds every .ps on any project-header change
+- New assumption to watch: all rooms 128 tiles wide (stride shift in room.c); BG3 HUD deferred until Phase 2 has something to show
+
 ### 2026-07-07 — Planning complete
 - Concept locked (GDD), roadmap phased 0→7 with milestone gates A/B/C
 - Toolchain verified live: PVSnesLib 4.5.0 / MesenCE / testrunner+Lua

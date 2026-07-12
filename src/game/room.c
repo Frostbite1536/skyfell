@@ -189,6 +189,9 @@ void room_cam_warp(u16 x, u16 y)
     setScreenOff();
     place_cam(x, y);
     setScreenOn();
+    /* force-blank time is not gameplay lag (prophet's convention):
+     * dbg_lag==0 must mean the LIVE loop holds 60fps */
+    lag_frame_counter = 0;
 }
 
 void room_load(u8 id, u16 camx, u16 camy)
@@ -224,4 +227,5 @@ void room_load(u8 id, u16 camx, u16 camy)
 #endif
 
     setScreenOn();
+    lag_frame_counter = 0; /* force-blank load time is not gameplay lag */
 }

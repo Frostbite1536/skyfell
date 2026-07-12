@@ -60,6 +60,6 @@ Stop-code convention: 0 pass · 1 generic · 12 Lua error · 13 body-ended-witho
 
 ## Test inventory (grows per phase — see ROADMAP gates)
 
-Phase 0: `test_boot` · Phase 1: `test_walk`, `test_jump` (golden apex), `test_replay` (determinism, runs forever) · Phase 2: `test_fling`, `test_portal_rules`, `test_sentry` · Phase 3: `test_gravity_cycle`, `test_chamber_puzzle` · Phase 4: `test_save_roundtrip`, `test_gate`
+Phase 0/1 (LIVE, 6): `test_boot` · `test_room` (pipeline + live seam streaming) · `test_vblank` (drain throughput/defer/overflow) · `test_walk`, `test_jump` (GOLDEN numbers frozen from the ROM 2026-07-12), `test_replay` (INV-ENG-002 — green forever) · Phase 2: `test_fling`, `test_portal_rules`, `test_sentry` · Phase 3: `test_gravity_cycle`, `test_chamber_puzzle` · Phase 4: `test_save_roundtrip`, `test_gate`
 
-Golden values live beside their tests; changing one requires a DECISIONS.md entry.
+Golden values live beside their tests; changing one requires a DECISIONS.md entry. Golden-harvest pattern: a temporary `test_zzz*.lua` probe writes measured values to its artifact dir; freeze them into the real test; delete the probe.

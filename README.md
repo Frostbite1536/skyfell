@@ -4,7 +4,7 @@ A **Super Nintendo game** — a real `.sfc` ROM, not a "retro-style" PC game. Po
 
 You are Wren, an apprentice riftwright descending through the shattered Skyfell Engine to relight it — and to learn who broke it.
 
-**Status**: 🚧 Phase 0 (toolchain bring-up) complete 2026-07-11 — the ROM builds, boots, and gates on an automated emulator test (baseline 1/1). Next: Phase 1, platformer core. See [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status**: 🚧 Phase 1 (platformer core) complete 2026-07-12 — Wren runs and jumps through a streaming-camera room, physics gated on golden emulator tests (baseline 6/6, replay determinism locked). Next: Phase 2, the Rift Gun. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Quick start
 

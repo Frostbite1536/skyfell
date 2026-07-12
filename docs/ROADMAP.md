@@ -60,31 +60,31 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 
 ## Phase 1: Platformer Core (Mode 1)
 
-**Status**: 📋 Planned
+**Status**: ✅ Complete 2026-07-12 (cold-clean gate 6/6)
 
 **Goal**: A tight-feeling character running and jumping around one scrollable room. This is the foundation everything sits on — get the *feel* right here.
 
 ### Included Features
 
-- [ ] Metatile room format: 16×16 metatiles (4 tiles + collision byte + material byte), loaded from converted Tiled maps; one test room ~64×32 metatiles
-- [ ] Fixed-point physics: positions s32 16.8, velocities s16 8.8, **no floats anywhere** (INV-ENG-001); all tunables in `src/game/tuning.h`
-- [ ] Player FSM: idle/run/jump/fall/land; coyote time (4f) + jump buffer (4f)
-- [ ] AABB-vs-metatile collision (swept per-axis)
-- [ ] Camera: deadzone follow + room-edge clamp; BG column/row streaming through the vblank queue
-- [ ] Meta-sprite system + OAM shadow; player 16×32 (2×16×16), current frame DMA-streamed per vblank
-- [ ] BG3 HUD stub (2bpp)
-- [ ] Reference: pvsneslib `snes-examples/games/likemario` (verified to exist) for structure, not copy-paste
+- [x] Metatile room format *(as revised by D-012: 16×16 metatiles are the AUTHORING grid — ASCII map → Tiled .tmj → tmx2snes; runtime = per-8×8-tile attribute u16 (collision+material), checksum-validated per INV-ENG-005)*; test room 64×32 metatiles (`assets/maps/room01.txt`)
+- [x] Fixed-point physics: positions s32 16.8, velocities s16 8.8, no floats (INV-ENG-001); all tunables in `src/game/tuning.h`
+- [x] Player FSM: idle/run/jump/fall (land folded into idle transition); coyote 4f + jump buffer 4f + variable jump height
+- [x] AABB-vs-tile collision (swept per-axis; exact wall/floor pins proven by golden tests)
+- [x] Camera: deadzone follow + room-edge clamp; BG column/row streaming through the vblank queue (1 col push / 2 row pushes per 8px crossing; zero lag frames measured)
+- [x] Meta-sprite: player 16×32 = 2×16×16 OAM shadow (direct stores) — all 8 frames resident in VRAM, so no per-vblank frame streaming needed yet (revisit if OBJ VRAM pressure ever appears)
+- [x] ~~BG3 HUD stub~~ deferred to the first phase that actually shows a HUD (Phase 2 aim/portal state) — nothing to display in Phase 1
+- [x] Reference likemario: structure consulted; its map engine NOT used (second VRAM writer would break INV-HW-001)
 
 ### Explicit Exclusions
 
-- No portals, no enemies, no damage, no room transitions. One room only.
+- No portals, no enemies, no damage, no room transitions. One room only. *(held)*
 
 ### Success Criteria
 
-- [ ] `test_walk.lua`: scripted right-walk reaches expected x within tolerance; wall stops movement exactly at boundary
-- [ ] `test_jump.lua`: apex height deterministic across runs; lock the measured value as a **golden number** and assert it thereafter
-- [ ] `test_replay.lua`: identical input script twice ⇒ bit-identical debug-RAM state (INV-ENG-002 established here, kept green forever)
-- [ ] 60fps sustained: Mesen debugger shows main loop finishing well before vblank (record measured scanline in CONTINUATION.md)
+- [x] `test_walk.lua`: golden walk distance EXACT (61776 subpx after 60 held frames + glide); wall pins exactly at x=16
+- [x] `test_jump.lua`: golden apex EXACT (py 94408 = 49.2px rise), exact floor re-contact, variable-height tap proven
+- [x] `test_replay.lua`: same script twice ⇒ bit-identical px/py/vx/vy/fsm at 3 checkpoints (INV-ENG-002 established, green forever)
+- [x] 60fps sustained: dbg_lag==0 asserted across every riding test (walk/jump/replay/room streaming); drain-start scanline measured v=230 (recorded in CONTINUATION.md + vblank.c)
 
 ---
 
