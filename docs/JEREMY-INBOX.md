@@ -50,6 +50,16 @@ rather I stop pushing overnight, say so and I'll keep commits local.
   to a second room, and solving the chamber puzzle walks you out through its
   exit recess back to the hall. (The old "pre-place a portal to escape the
   shaft" note is obsolete once you use the doors.)
+- **Zone 1 is IN (new, D-022)** — the demo is now title → seven authored
+  rooms (movement → portals → the big fling → crates → the sentry shaft →
+  synthesis → the gate) → the chamber → end card → title. Your playthrough
+  is the real gate: door graph + loads are machine-verified, and I'm
+  scripting the route solves next, but FEEL (launch heights, gap widths,
+  the crate hop, sentry timing) is yours. Design choices to veto if they
+  read wrong in the hands: rooms 05/08's gaps are one-way eastward valves
+  (you can always door back the long way); room06's plateau needs the
+  crate hop (1.6px of apex margin — the second crate is there if stacking
+  feels better); the end card loops to the title now, not the hall.
 - **Audio (new, D-020)**: the game now has music + 6 SFX — all synthesized
   (a music-box-and-bass ambient loop, "The Gyre Hums"; jump/fire/portal-open/
   teleport/land/death effects). Your ears are the gate I can't run: `make run`

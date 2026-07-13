@@ -70,12 +70,18 @@ H.run(function()
                 "the recess reached (end card shows, D-019)", 18)
     H.waitFrames(10)
     H.snap("end_card")
-    H.padScript(function() return { start = true } end)
-    H.waitUntil(function() return H.dbgU8(18) == 0 end, 300,
-                "START returns to the hall", 18)
+    -- D-021: the end card chains to the TITLE (fresh press), and a second
+    -- fresh press enters Zone 1 — two pulses, never a hold
+    local fs = H.dbgU16(2)
+    H.padScript(function(f)
+        local d = f - fs
+        return { start = (d > 4 and d < 10) or (d > 40 and d < 46) }
+    end)
+    H.waitUntil(function() return H.dbgU8(18) == 3 end, 400,
+                "end card -> title -> room03", 18)
     H.padScript(nil)
     H.waitFrames(60)
-    H.assertEq(read32(4), 256 * 256, "hall re-entry x", 18)
+    H.assertEq(read32(4), 40 * 256, "zone-start entry x", 18)
     H.snap("door_back_home")
 
     H.assertEq(H.dbgU8(22), 0, "no queue overflow", 19)

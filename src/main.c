@@ -33,9 +33,13 @@ static u8 fade_lvl;    /* 0..15 */
 static u8 fade_dst;
 static u16 fade_px, fade_py;
 static u8 held_up;
+static u8 held_start; /* title/end-card dismiss edge (D-021: the end card
+                         chains to the title — held START must not skip) */
 
 #define ROOMTABS_MAIN
 #include "src/data/generated/roomtabs.h"
+
+#define ZONE_START 3 /* the demo's first room (title START lands here) */
 
 /* per-room default entry (used by the TEST warp mailbox and the death
  * respawn); ids past the table fall back to room01's entry */
@@ -87,6 +91,7 @@ void game_title(u8 kind)
         in_title = 1;
     }
     vq_console = 1;
+    held_start = 1; /* require a FRESH press to dismiss this card */
     setScreenOn();
     lag_frame_counter = 0;
 }
@@ -247,6 +252,7 @@ int main(void)
     fade = 0;
     fade_lvl = 15;
     held_up = 0;
+    held_start = 0;
     cur_room_id = 0;
     in_title = 0;
 #ifndef TEST_BUILD
@@ -259,15 +265,31 @@ int main(void)
         pad = padsCurrent(0);
         if (in_title)
         {
-            /* the world is parked behind the card; START enters the hall
-             * (the end card returns beside the pit, like the recess exit) */
+            /* the world is parked behind the card; START on the title
+             * enters Zone 1 (D-021: the demo arc is title -> room03 ...
+             * -> room09 -> the chamber -> end card -> title again).
+             * Edge-gated: end card -> title -> zone is two PRESSES —
+             * a held START must not skip through the title. */
             if (pad & KEY_START)
             {
-                if (in_title == 2)
-                    goto_room(0, 256, 418);
-                else
-                    goto_room(0, room_entry_x(0), room_entry_y(0));
+                if (!held_start)
+                {
+                    if (in_title == 2)
+                        game_title(0); /* the demo loops to the title */
+                    else
+                    {
+                        /* args hoisted: calls nested in an argument list
+                         * spill through fragile tcc816 stack slots —
+                         * conservative style, not a confirmed trap */
+                        u16 zx = room_entry_x(ZONE_START);
+                        u16 zy = room_entry_y(ZONE_START);
+                        goto_room(ZONE_START, zx, zy);
+                    }
+                }
+                held_start = 1;
             }
+            else
+                held_start = 0;
         }
         else if (fade == 1)
         {
@@ -387,7 +409,9 @@ int main(void)
         if (dbg_warp & 0x8000)
         {
             u8 rid = (u8)(dbg_warp & 0xFF);
-            goto_room(rid, room_entry_x(rid), room_entry_y(rid));
+            u16 wx = room_entry_x(rid); /* hoisted like the title branch */
+            u16 wy = room_entry_y(rid);
+            goto_room(rid, wx, wy);
             fade = 0; /* test warps are instant — cancel any fade */
             fade_lvl = 15;
             vq_set_bright(15);

@@ -91,7 +91,7 @@ $(GENOBJ) &: tools/art/mkobj.py tools/art/mktiles.py
 # Rooms: ASCII metatile grid -> Tiled .tmj (mkmaps) -> tmx2snes (D-011) ->
 # baked map/attr binaries + checksum (roomglue, D-012/INV-ENG-005).
 # Add each authored room to ROOMS (mkmaps/roomglue glob on their own).
-ROOMS := room01 room02
+ROOMS := room01 room02 room03 room04 room05 room06 room07 room08 room09
 ROOMTMJ := $(foreach r,$(ROOMS),$(GEN)/maps/$(r).tmj)
 ROOMM16 := $(foreach r,$(ROOMS),$(GEN)/maps/$(r).m16)
 

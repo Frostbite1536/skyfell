@@ -10,6 +10,13 @@ extern u16 room_map[];   /* chamram.asm: the LIVE room, WRAM bank $7F —
                             label (D-016; never a stored C pointer) */
 extern u16 room01_map[]; /* rooms.asm (generated): the ROM originals */
 extern u16 room02_map[];
+extern u16 room03_map[]; /* Zone 1 "The Gantries" (D-021 authoring) */
+extern u16 room04_map[];
+extern u16 room05_map[];
+extern u16 room06_map[];
+extern u16 room07_map[];
+extern u16 room08_map[];
+extern u16 room09_map[];
 extern u16 room01_att[]; /* the SHARED tileset attrs — roomglue asserts
                             every room's att table is byte-identical */
 extern char tiles_chr, tiles_chr_end, tiles_pal; /* data.asm */
@@ -300,25 +307,52 @@ void room_load(u8 id, u16 camx, u16 camy)
 
     /* copy the selected ROM room into the LIVE map (D-016: id 1 is the
      * chamber — main.c routes it before calling here; extend this chain
-     * per authored room, roomglue keys the constants). All rooms are the
-     * D-012 128x64 grid. */
+     * per authored room, roomglue keys the constants; ids per D-021:
+     * room01 -> 0, roomNN -> NN). All rooms are the D-012 128x64 grid. */
+#define ROOM_COPY(NN)                        \
+    for (i = 0; i < n; i++)                  \
+        room_map[i] = room##NN##_map[i];     \
+    rm_w = ROOM##NN##_W;                     \
+    rm_h = ROOM##NN##_H;                     \
+    ck_want = ROOM##NN##_CKSUM
     n = (u16)(ROOM01_H << 7); /* words */
     if (id == 2)
     {
-        for (i = 0; i < n; i++)
-            room_map[i] = room02_map[i];
-        rm_w = ROOM02_W;
-        rm_h = ROOM02_H;
-        ck_want = ROOM02_CKSUM;
+        ROOM_COPY(02);
+    }
+    else if (id == 3)
+    {
+        ROOM_COPY(03);
+    }
+    else if (id == 4)
+    {
+        ROOM_COPY(04);
+    }
+    else if (id == 5)
+    {
+        ROOM_COPY(05);
+    }
+    else if (id == 6)
+    {
+        ROOM_COPY(06);
+    }
+    else if (id == 7)
+    {
+        ROOM_COPY(07);
+    }
+    else if (id == 8)
+    {
+        ROOM_COPY(08);
+    }
+    else if (id == 9)
+    {
+        ROOM_COPY(09);
     }
     else
     {
-        for (i = 0; i < n; i++)
-            room_map[i] = room01_map[i];
-        rm_w = ROOM01_W;
-        rm_h = ROOM01_H;
-        ck_want = ROOM01_CKSUM;
+        ROOM_COPY(01);
     }
+#undef ROOM_COPY
     rm_wpx = (u16)(rm_w << 3);
     rm_hpx = (u16)(rm_h << 3);
 

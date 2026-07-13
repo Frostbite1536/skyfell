@@ -6,7 +6,30 @@
 
 > Continue RIFT: The Skyfell Engine, the SNES portal-gun game at `C:\Users\LCM\Github\skyfell`, building autonomously per Jeremy's standing authorization (commit per unit, push per phase/milestone, route his decisions to docs/JEREMY-INBOX.md and build around them). Read `docs/CONTINUATION.md` IN FULL first (env: the proven gate one-liner, MSYS2 make, MesenCE facts), plus the memory files `tcc816-mesen-traps` and `prophet-reuse-audit` (toolchain codegen traps — compound guards, ~1k-cycle calls, VMAIN $02 DMA, no function-scope statics/stack arrays, measure-with-scanline-probes-before-optimizing). Then JEREMY-INBOX (don't build past open items). State: Phases 0-3 COMPLETE (spin-feel gate GREEN — Jeremy 2026-07-12), Phase 3.5 units A-E done (multi-room, doors, death, title/end cards, AUDIO — D-016..D-020); gate baseline **19/19** cold-clean. NEXT (in order): Zone 1 "The Gantries" 7 authored Mode 1 rooms (move → portal → fling → crate → sentry, gated door into the chamber; grow the per-room spawn/entry tables per D-016 — a generated spawn-from-ASCII table earns itself here; check ledges vs the 35.6px apex), tile-budget audit (≤384 BG tiles, reuse map in assets/README.md), then the MILESTONE A build + played-through checklist for Jeremy (his go/no-go — do NOT record his verdict). Rails: goldens are HARVESTED from the ROM (temp test_zzz*.lua probes, deleted before commit; a change needs a DECISIONS entry); debug block append-only (next slot **+76**); dbg_lag==0 asserted everywhere; every phase ends with a cold-clean `make test`, docs updated, commit+push, CI checked.
 
-## Current state (2026-07-13, Phase 3.5 units A-E done — audio is IN)
+## Current state (2026-07-13, Phase 3.5: units A-E + Zone 1 F1/F2a done)
+
+- **Zone 1 F2a COMPLETE — The Gantries authored (D-022), gate 20/20
+  cold-clean**: rooms 3-9 teach movement → portals → fling → crates →
+  sentry → synthesis → the gate; demo flow = title → room03 … room09 →
+  chamber → end card → title (START edge-gated via `held_start`).
+  room.c copy chain = ROOM_COPY macro over 9 rooms; test_zone1 walks the
+  door graph to the chamber. Crux geometry eyeballed via warp snaps.
+  **SCAR**: post-transition asserts need ~60 frames (the tail lands ~25
+  blocked frames after room/checksum/px — a 20-frame margin read phantom
+  entities; probe-proven, recorded in D-022).
+- **Zone 1 F1 COMPLETE — D-021 room metadata pipeline (`2d072d9`)**:
+  @entry/@door/@spawn headers in the room txt → mkmaps .meta.json →
+  roomglue → `roomtabs.h` (ROOMTABS_MAIN entries+doors for main.c,
+  ROOMTABS_ENT spawns for entity.c). Id rule: room01→0, chamber=1,
+  roomNN→NN. Hand tables migrated verbatim, 19/19 unchanged.
+- **NEXT — F2b: the scripted walkthrough solves** (each teaching crux
+  pad-driven like test_fling/test_chamber_puzzle: room04's pit launch,
+  room05's tower fling, room06's crate hop — 1.6px apex margin, verify
+  or add the stack —, room07's reflect kill, room08's crossing). Then
+  F3: tile-budget audit + assets/README reuse map + the Milestone A
+  build & checklist (Jeremy's go/no-go).
+
+## Previous state (2026-07-13, Phase 3.5 units A-E done — audio is IN)
 
 - **Unit E COMPLETE — the audio spike (D-020), gate 19/19 cold-clean**: R3 is
   dead — the LAST unproven pipeline works end to end. `tools/audio/mkit.py`

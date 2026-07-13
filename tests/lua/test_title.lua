@@ -1,6 +1,7 @@
--- test_title — Phase 3.5 (D-019): the title card (release boots into it;
--- TEST builds summon it via verb 10 so the harness never stalls) parks
--- the world, renders console text, and START enters the hall through the
+-- test_title — Phase 3.5 (D-019/D-021): the title card (release boots into
+-- it; TEST builds summon it via verb 10 so the harness never stalls) parks
+-- the world, renders console text, and a FRESH START press (edge-gated —
+-- a held START must not skip cards) enters Zone 1's first room through the
 -- full goto_room reload. Stop codes 10..11, 14..19.
 
 H.maskInput()
@@ -26,14 +27,18 @@ H.run(function()
     H.waitFrames(20)
     H.assertEq(read32(4), px, "world parked behind the title", 14)
 
-    -- START enters the hall at the spawn (a full reload)
-    H.padScript(function() return { start = true } end)
+    -- a fresh START press enters Zone 1's first room (a full reload)
+    local f0 = H.dbgU16(2)
+    H.padScript(function(f) return { start = (f - f0) > 4 and (f - f0) < 10 } end)
     H.waitUntil(function()
-        return H.dbgU8(23) == 1 and read32(4) == 88 * 256
-    end, 300, "START -> the hall", 15)
+        return H.dbgU8(18) == 3 and H.dbgU8(23) == 1 and read32(4) == 40 * 256
+    end, 300, "START -> room03 (the zone start)", 15)
     H.padScript(nil)
-    H.waitFrames(20)
-    H.assertEq(H.dbgU8(21), 2, "entities live after dismiss", 16)
+    H.waitFrames(60) -- the room id/checksum/px land MID-transition; the
+                     -- tail (ent_room_init) runs ~25 blocked frames later
+                     -- (D-017's 40-60-frame transition — probe-measured
+                     -- again here; a 20-frame margin read stale entities)
+    H.assertEq(H.dbgU8(21), 0, "room03 spawns nothing", 16)
     H.snap("title_dismissed")
 
     H.assertEq(H.dbgU8(22), 0, "no queue overflow", 19)
