@@ -103,7 +103,7 @@ $(GEN)/maps/%.m16 $(GEN)/maps/%.b16 $(GEN)/maps/%.t16 &: \
 		$(GEN)/maps/%.tmj $(GEN)/tiles.map
 	$(TMXCONV) $(GEN)/maps/$*.tmj $(GEN)/tiles.map
 
-GENROOMS := $(GEN)/rooms.asm $(GEN)/rooms.h
+GENROOMS := $(GEN)/rooms.asm $(GEN)/rooms.h $(GEN)/roomtabs.h
 $(GENROOMS) &: tools/roomglue.py $(ROOMM16)
 	$(PYTHON) tools/roomglue.py
 
@@ -174,6 +174,7 @@ $(ROMNAME).sfc: $(CHAMOBJ)
 data.obj: $(GENTILES) $(GENOBJ) $(GEN)/pvsneslibfont.pic $(GEN)/pvsneslibfont.pal
 src/game/room.ps: $(GEN)/rooms.h
 src/game/chamber.ps: $(GEN)/chamber.h
+src/main.ps src/game/entity.ps: $(GEN)/roomtabs.h
 
 # snes_rules tracks NO header dependencies — a tuning.h edit left a stale
 # player.obj in the ROM once (identical goldens exposed it). Coarse but

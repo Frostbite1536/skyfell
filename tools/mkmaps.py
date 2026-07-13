@@ -6,6 +6,15 @@ tiles, one tilelayer named after the room, embedded tileset with per-tile
 attribute/palette/priority string properties, exactly the shape tmx2snes
 4.5.0's cute_tiled parser consumes; template = the pvsneslib likemario map).
 Deterministic: sorted keys, no timestamps.
+
+Room METADATA (D-021) is authored as @-header lines BEFORE the grid and
+emitted as a <name>.meta.json sidecar (roomglue.py turns the sidecars into
+the generated runtime tables):
+  @entry X Y                       player entry px (box top-left) — required
+  @door X0 X1 Y0 Y1 -> dest X Y    UP-to-enter trigger rect (px, inclusive)
+                                   -> dest room name ("chamber" allowed) +
+                                   arrival entry px (ignored for chamber)
+  @spawn kind X Y                  kind: crate | sentry_l | sentry_r
 """
 import glob
 import json
@@ -51,10 +60,38 @@ def build_tileset():
     }
 
 
+def parse_meta(name, lines):
+    meta = {"entry": None, "doors": [], "spawns": []}
+    grid = []
+    for ln in lines:
+        if not ln.startswith("@"):
+            grid.append(ln)
+            continue
+        tok = ln.split()
+        if tok[0] == "@entry":
+            meta["entry"] = [int(tok[1]), int(tok[2])]
+        elif tok[0] == "@door":
+            assert len(tok) == 9 and tok[5] == "->", "%s: bad @door: %s" % (name, ln)
+            meta["doors"].append({"rect": [int(t) for t in tok[1:5]],
+                                  "dest": tok[6],
+                                  "x": int(tok[7]), "y": int(tok[8])})
+        elif tok[0] == "@spawn":
+            assert tok[1] in ("crate", "sentry_l", "sentry_r"), \
+                "%s: unknown spawn kind %s" % (name, tok[1])
+            meta["spawns"].append({"kind": tok[1], "x": int(tok[2]), "y": int(tok[3])})
+        else:
+            raise AssertionError("%s: unknown metadata line: %s" % (name, ln))
+    assert meta["entry"] is not None, "%s: @entry is required (D-021)" % name
+    return meta, grid
+
+
 def convert(txt_path):
     name = os.path.splitext(os.path.basename(txt_path))[0]
     with open(txt_path) as f:
         lines = [ln.rstrip("\n") for ln in f if ln.strip("\n") != ""]
+    meta, lines = parse_meta(name, lines)
+    with open(os.path.join(OUT, name + ".meta.json"), "w", newline="\n") as f:
+        json.dump(meta, f, sort_keys=True, separators=(",", ":"))
     assert len(lines) == META_H, "%s: want %d rows, got %d" % (name, META_H, len(lines))
     data = [0] * (W * H)
     for my, ln in enumerate(lines):

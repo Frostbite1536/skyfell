@@ -24,8 +24,9 @@ u8 game_mode; /* 0 = Mode 1 room, 1 = the Mode 7 chamber (dbgcmd routes
 
 /* --- door transitions (D-017): stand in a doorway + press UP (up-gated
  * so no scripted test path can trip one by walking); fade out via the
- * NMI brightness shadow, force-blank load, fade in. Links hand-tabled
- * until Zone 1 authoring (D-016 convention). Room id 1 = the chamber. */
+ * NMI brightness shadow, force-blank load, fade in. Entries + door links
+ * are GENERATED from the @-headers in assets/maps (D-021 — roomtabs.h).
+ * Room id 1 = the chamber. */
 static u8 cur_room_id; /* current Mode 1 room while game_mode==0 */
 static u8 fade;        /* 0 live, 1 fading out, 2 fading in */
 static u8 fade_lvl;    /* 0..15 */
@@ -33,18 +34,13 @@ static u8 fade_dst;
 static u16 fade_px, fade_py;
 static u8 held_up;
 
-/* {room, x0, x1, y0, y1, target, entry x, entry y} — px, inclusive */
-#define DOOR_N 3
-static const u16 door_tab[DOOR_N][8] = {
-    {0, 16, 31, 416, 447, 2, 960, 434},   /* hall west door -> room02 */
-    {0, 608, 639, 448, 479, 1, 0, 0},     /* the pit door -> the chamber */
-    {2, 992, 1007, 432, 463, 0, 40, 418}, /* room02 east door -> the hall */
-};
+#define ROOMTABS_MAIN
+#include "src/data/generated/roomtabs.h"
 
-/* per-room default entry (hand-tabled per D-016; used by the TEST warp
- * mailbox and the death respawn) */
-static u16 room_entry_x(u8 id) { return (id == 2) ? 88 : SPAWN_X; }
-static u16 room_entry_y(u8 id) { return (id == 2) ? 434 : SPAWN_Y; }
+/* per-room default entry (used by the TEST warp mailbox and the death
+ * respawn); ids past the table fall back to room01's entry */
+static u16 room_entry_x(u8 id) { return rt_entry[(id <= RT_ROOM_MAX) ? id : 0][0]; }
+static u16 room_entry_y(u8 id) { return rt_entry[(id <= RT_ROOM_MAX) ? id : 0][1]; }
 
 /* --- title + end-of-demo card (D-019): pvsneslib console text on a
  * force-blanked repoint of BG1; the NMI uploads it while vq_console is
@@ -355,19 +351,19 @@ int main(void)
                     u8 di;
                     s16 dpx = player_px();
                     s16 dpy = player_py();
-                    for (di = 0; di < DOOR_N; di++)
+                    for (di = 0; di < RT_DOOR_N; di++)
                     {
-                        if ((u8)door_tab[di][0] != cur_room_id)
+                        if ((u8)rt_door[di][0] != cur_room_id)
                             continue;
-                        if (dpx >= (s16)(door_tab[di][1] + 1) - PB_W &&
-                            dpx <= (s16)door_tab[di][2] &&
-                            dpy >= (s16)(door_tab[di][3] + 1) - PB_H &&
-                            dpy <= (s16)door_tab[di][4])
+                        if (dpx >= (s16)(rt_door[di][1] + 1) - PB_W &&
+                            dpx <= (s16)rt_door[di][2] &&
+                            dpy >= (s16)(rt_door[di][3] + 1) - PB_H &&
+                            dpy <= (s16)rt_door[di][4])
                         {
                             fade = 1;
-                            fade_dst = (u8)door_tab[di][5];
-                            fade_px = door_tab[di][6];
-                            fade_py = door_tab[di][7];
+                            fade_dst = (u8)rt_door[di][5];
+                            fade_px = rt_door[di][6];
+                            fade_py = rt_door[di][7];
                             break;
                         }
                     }

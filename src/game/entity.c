@@ -6,6 +6,9 @@
 #include "src/game/room.h"
 #include "src/game/tuning.h"
 
+#define ROOMTABS_ENT
+#include "src/data/generated/roomtabs.h" /* @spawn tables (D-021) */
+
 #ifdef TEST_BUILD
 extern u8 dbg_entn;    /* dbg.asm +21 */
 extern u16 dbg_e0x;    /* +50..+56: watched entity mirror */
@@ -160,26 +163,24 @@ u8 ent_count(void)
     return n;
 }
 
-/* per-room authored spawns, hand-tabled by id (D-016: a generated
- * spawn-from-ASCII table lands with the Zone 1 authoring pass, where
- * 7 rooms x N entities starts to earn it) */
+/* per-room authored spawns, GENERATED from the @spawn headers in
+ * assets/maps (D-021, roomtabs.h) — authored beside the geometry */
 void ent_room_init(u8 room)
 {
-    u8 s;
+    u8 s, i;
     ent_clear_all();
-    if (room == 2)
+    for (i = 0; i < RT_SPAWN_N; i++)
     {
-        /* room02, the proof room: crate on the floor, sentry by the
-         * right-wall brass column */
-        ent_spawn(ET_CRATE, 160, 450);
-        s = ent_spawn(ET_SENTRY, 800, 448);
-        ent_set_face(s, 1);
-        return;
+        if ((u8)rt_spawn[i][0] != room)
+            continue;
+        if (rt_spawn[i][1] == RTS_CRATE)
+            ent_spawn(ET_CRATE, rt_spawn[i][2], rt_spawn[i][3]);
+        else
+        {
+            s = ent_spawn(ET_SENTRY, rt_spawn[i][2], rt_spawn[i][3]);
+            ent_set_face(s, (u8)(rt_spawn[i][1] == RTS_SENTRY_L));
+        }
     }
-    ent_spawn(ET_CRATE, 320, 434);          /* on the floor mid-left */
-    s = ent_spawn(ET_SENTRY, 896, 432);     /* right shaft, between the
-                                               brass tower and pillar */
-    ent_set_face(s, 1);                     /* fires left, at the tower */
 }
 
 /* puzzle probe (chamber.c door_check): is any crate ASLEEP with its box
