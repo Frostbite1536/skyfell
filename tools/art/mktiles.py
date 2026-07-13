@@ -206,6 +206,20 @@ def paint_portal_tiles():
     return out
 
 
+def mt_door():
+    """doorway segment (D-017): dark opening, brass jambs, tileable
+    vertically so 'D' can stack 2 metatiles tall"""
+    c = Canvas16(1)
+    c.rect(3, 0, 12, 15, 13)      # the dark opening
+    c.rect(0, 0, 2, 15, 8)        # brass jambs
+    c.rect(13, 0, 15, 15, 8)
+    c.vline(2, 0, 15, 9)
+    c.vline(13, 0, 15, 7)
+    c.px(7, 4, 2)                 # depth glints
+    c.px(8, 10, 2)
+    return c
+
+
 def t_star(kind):
     t = [[0] * 8 for _ in range(8)]
     if kind == 1:
@@ -262,6 +276,7 @@ def main():
     tiles.append(t_star(1))
     tiles.append(t_star(2))
     tiles.extend(paint_portal_tiles())  # 27..34: pv/ph cap+body, blue then gold
+    tiles.extend(mt_door().quads())     # 35..38: doorway (D-017)
     assert len(tiles) == TILE_COUNT, len(tiles)
 
     with open(os.path.join(GEN, "tiles.chr"), "wb") as f:

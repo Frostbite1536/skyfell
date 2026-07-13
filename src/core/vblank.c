@@ -91,6 +91,11 @@ static u16 vq_budget_ovr; /* if nonzero, the drain uses this instead of the
 static u16 sh_bg1x, sh_bg1y, sh_bg2x, sh_bg2y;
 static u8 sh_m7on;
 static s16 sh_m7[8]; /* a b c d x y hofs vofs */
+static u8 sh_bright;      /* $2100 value (0-15) for the door fades */
+static u8 sh_bright_pend; /* one-shot: the NMI applies then clears (the
+                             lib's setScreenOn/Off write $2100 directly at
+                             load boundaries — a per-frame shadow would
+                             fight them) */
 
 void vq_init(void)
 {
@@ -108,6 +113,16 @@ void vq_init(void)
     sh_bg2x = 0;
     sh_bg2y = 0;
     sh_m7on = 0;
+    sh_bright = 0x0F;
+    sh_bright_pend = 0;
+}
+
+/* Brightness shadow (door fades, D-017): applied INSIDE the NMI only —
+ * $2100 written mid-display tears a scanline (INV-HW-001). */
+void vq_set_bright(u8 b)
+{
+    sh_bright = b;
+    sh_bright_pend = 1;
 }
 
 void vq_set_m7_on(u8 on)
@@ -290,6 +305,11 @@ static void vq_nmi(void)
         REG_BG2HOFS = (u8)(sh_bg2x >> 8);
         REG_BG2VOFS = (u8)sh_bg2y;
         REG_BG2VOFS = (u8)(sh_bg2y >> 8);
+    }
+    if (sh_bright_pend)
+    {
+        sh_bright_pend = 0;
+        REG_INIDISP = sh_bright; /* the door fades (vq_set_bright) */
     }
 
     if (vq_head >= vq_n)

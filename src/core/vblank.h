@@ -51,6 +51,11 @@ void vq_set_scroll_bg2(u16 bg2x, u16 bg2y);
 void vq_set_m7_on(u8 on);
 void vq_set_m7(s16 a, s16 b, s16 c, s16 d, s16 x, s16 y, s16 hofs, s16 vofs);
 
+/* Brightness shadow (door fades, D-017): $2100 = b (0-15) applied inside
+ * the NEXT NMI, one-shot ($2100 mid-display tears a scanline; the lib's
+ * setScreenOn/Off still own load boundaries). */
+void vq_set_bright(u8 b);
+
 #ifdef TEST_BUILD
 void vq_test_budget(u16 bytes); /* override the drain's byte budget (0 = off) */
 u16 vq_scanline(void); /* latch + read the current vertical counter (the

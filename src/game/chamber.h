@@ -27,5 +27,7 @@ extern s16 cham_cy;
 extern s8 cham_gx;   /* gravity unit vector, world coords — chamber crate
                         physics + carried/drop directions (entity.c) */
 extern s8 cham_gy;
+extern u8 cham_exit; /* the puzzle exit recess was entered — main.c
+                        consumes it (fade back to the hall, D-017) */
 
 #endif

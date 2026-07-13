@@ -21,6 +21,50 @@
 u8 game_mode; /* 0 = Mode 1 room, 1 = the Mode 7 chamber (dbgcmd routes
                  POS_SET by this) */
 
+/* --- door transitions (D-017): stand in a doorway + press UP (up-gated
+ * so no scripted test path can trip one by walking); fade out via the
+ * NMI brightness shadow, force-blank load, fade in. Links hand-tabled
+ * until Zone 1 authoring (D-016 convention). Room id 1 = the chamber. */
+static u8 cur_room_id; /* current Mode 1 room while game_mode==0 */
+static u8 fade;        /* 0 live, 1 fading out, 2 fading in */
+static u8 fade_lvl;    /* 0..15 */
+static u8 fade_dst;
+static u16 fade_px, fade_py;
+static u8 held_up;
+
+/* {room, x0, x1, y0, y1, target, entry x, entry y} — px, inclusive */
+#define DOOR_N 3
+static const u16 door_tab[DOOR_N][8] = {
+    {0, 16, 31, 416, 447, 2, 960, 434},   /* hall west door -> room02 */
+    {0, 608, 639, 448, 479, 1, 0, 0},     /* the pit door -> the chamber */
+    {2, 992, 1007, 432, 463, 0, 40, 418}, /* room02 east door -> the hall */
+};
+
+/* full mode/room switch under force-blank (the TEST warp mailbox and the
+ * door fades share this one path) */
+static void goto_room(u8 id, u16 x, u16 y)
+{
+    if (id == 1)
+    {
+        game_mode = 1;
+        chamber_load(); /* its own fixed spawn; x,y unused */
+        return;
+    }
+    game_mode = 0;
+    cur_room_id = id;
+    setScreenOff(); /* PPU regs below need blank (INV-HW-001) */
+    vq_set_m7_on(0);
+    portal_init();
+    portal_world = 0;
+    setMode(BG_MODE1, 0);
+    bgSetDisable(1);
+    bgSetDisable(2);
+    player_obj_base(0x2000);
+    room_load(id, room_cam_x(), room_cam_y());
+    player_warp(x, y);
+    ent_room_init(id);
+}
+
 #ifdef TEST_BUILD
 /* Debug block at $7E:FF00 — labels in dbg.asm (INV-TEST-001, D-010). WRAM
  * boots as garbage: every field is zeroed below BEFORE dbg_magic goes live,
@@ -132,10 +176,43 @@ int main(void)
     lag_frame_counter = 0;
 
     t = 0;
+    fade = 0;
+    fade_lvl = 15;
+    held_up = 0;
+    cur_room_id = 0;
     while (1)
     {
         pad = padsCurrent(0);
-        if (game_mode)
+        if (fade == 1)
+        {
+            /* fading out: 2 brightness steps/frame, world frozen */
+            if (fade_lvl >= 2)
+            {
+                fade_lvl = (u8)(fade_lvl - 2);
+                vq_set_bright(fade_lvl);
+            }
+            else
+            {
+                goto_room(fade_dst, fade_px, fade_py);
+                REG_INIDISP = 0; /* the load's setScreenOn restored full
+                                    brightness mid-frame — re-darken on the
+                                    same boundary frame (fade-in owns the
+                                    ramp; INV-HW-001 boundary category) */
+                vq_set_bright(0);
+                fade = 2;
+            }
+        }
+        else if (fade == 2)
+        {
+            fade_lvl = (u8)(fade_lvl + 2);
+            if (fade_lvl >= 15)
+            {
+                fade_lvl = 15;
+                fade = 0;
+            }
+            vq_set_bright(fade_lvl);
+        }
+        else if (game_mode)
         {
             chamber_frame(pad); /* gravity-frame physics + rotation SM */
 #ifdef TEST_BUILD
@@ -146,6 +223,15 @@ int main(void)
                                  (they're hidden — sprites can't rotate) */
             chamber_render();
             ent_render();
+            if (cham_exit)
+            {
+                cham_exit = 0; /* the puzzle recess: back to the hall
+                                  (x 256 — clear of the crate spawn) */
+                fade = 1;
+                fade_dst = 0;
+                fade_px = 256;
+                fade_py = 418;
+            }
         }
         else
         {
@@ -156,6 +242,37 @@ int main(void)
             ent_update();    /* crates, sentries, shots (portal transits) */
             player_render(); /* OAM shadow; the lib ISR DMAs it */
             ent_render();
+
+            /* doors: UP edge while standing in a doorway (R excluded —
+             * R+UP is the aim-lock) */
+            if ((pad & KEY_UP) && !(pad & KEY_R))
+            {
+                if (!held_up)
+                {
+                    u8 di;
+                    s16 dpx = player_px();
+                    s16 dpy = player_py();
+                    for (di = 0; di < DOOR_N; di++)
+                    {
+                        if ((u8)door_tab[di][0] != cur_room_id)
+                            continue;
+                        if (dpx >= (s16)(door_tab[di][1] + 1) - PB_W &&
+                            dpx <= (s16)door_tab[di][2] &&
+                            dpy >= (s16)(door_tab[di][3] + 1) - PB_H &&
+                            dpy <= (s16)door_tab[di][4])
+                        {
+                            fade = 1;
+                            fade_dst = (u8)door_tab[di][5];
+                            fade_px = door_tab[di][6];
+                            fade_py = door_tab[di][7];
+                            break;
+                        }
+                    }
+                }
+                held_up = 1;
+            }
+            else
+                held_up = 0;
         }
 #ifdef TEST_BUILD
         dbg_prof1 = vq_scanline(); /* stage bracket: after entities+render */
@@ -167,29 +284,14 @@ int main(void)
          * Room 1 = THE CHAMBER (Mode 7); anything else = the gantry hall. */
         if (dbg_warp & 0x8000)
         {
-            if ((u8)(dbg_warp & 0xFF) == 1)
-            {
-                game_mode = 1;
-                chamber_load();
-            }
+            u8 rid = (u8)(dbg_warp & 0xFF);
+            if (rid == 2)
+                goto_room(rid, 88, 434); /* room02's floor (D-016 table) */
             else
-            {
-                game_mode = 0;
-                setScreenOff(); /* PPU regs below need blank (INV-HW-001) */
-                vq_set_m7_on(0);
-                portal_init();
-                portal_world = 0;
-                setMode(BG_MODE1, 0);
-                bgSetDisable(1);
-                bgSetDisable(2);
-                player_obj_base(0x2000);
-                room_load((u8)(dbg_warp & 0xFF), room_cam_x(), room_cam_y());
-                if ((u8)(dbg_warp & 0xFF) == 2)
-                    player_warp(88, 434); /* room02's floor (D-016 table) */
-                else
-                    player_warp(SPAWN_X, SPAWN_Y);
-                ent_room_init((u8)(dbg_warp & 0xFF));
-            }
+                goto_room(rid, SPAWN_X, SPAWN_Y);
+            fade = 0; /* test warps are instant — cancel any fade */
+            fade_lvl = 15;
+            vq_set_bright(15);
             dbg_warp = 0; /* ack */
         }
         dbg_mainv = vq_scanline(); /* frame-cost probe: where work ended */

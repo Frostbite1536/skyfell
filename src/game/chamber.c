@@ -54,6 +54,7 @@ s16 cham_cx;  /* Wren's box center, world px: the M7 pivot */
 s16 cham_cy;
 s8 cham_gx;   /* gravity unit vector, world (crate physics, entity.c) */
 s8 cham_gy;
+u8 cham_exit; /* Wren entered the open exit recess — main.c fades out */
 
 /* gravity unit vector G and tangent T = (Gy, -Gx) per gravity state */
 static const s8 g_x[4] = {0, -1, 0, 1};
@@ -315,6 +316,7 @@ void chamber_load(void)
     door_open = 0;
     door_row = 0;
     eject_pend = 0;
+    cham_exit = 0;
 
     /* the Gale Drone patrols the arena center (its D-014 leash box —
      * spawn +- DRONE_R — clears every ledge and brass-strip front) */
@@ -666,8 +668,9 @@ void chamber_frame(u16 pad)
     else if ((s16)(cpx >> 8) < 280)
     {
         /* the recess is the only reachable x < 280 in this world */
+        cham_exit = 1; /* main.c fades back to the hall (D-017) */
 #ifdef TEST_BUILD
-        dbg_exit = 1; /* Phase 3.5 wires the real room transition */
+        dbg_exit = 1;
 #endif
     }
 

@@ -47,7 +47,11 @@ TILE_PV_CAP_G = 31   # gold set
 TILE_PV_BODY_G = 32
 TILE_PH_CAP_G = 33
 TILE_PH_BODY_G = 34
-TILE_COUNT = 35
+# Door metatile (D-017): a walk-through doorway VISUAL — transitions are
+# trigger rects hand-tabled in main.c. Appended AFTER the portal tiles
+# (their ids 27-34 are pinned in portal.c).
+TILE_DOOR = 35       # 4 tiles, 35-38 (tl,tr,bl,br), collision EMPTY
+TILE_COUNT = 39
 
 
 def meta_quad(name):
@@ -77,5 +81,6 @@ LEGEND = {
     "-": meta_quad("girder"),
     "|": meta_quad("pipe"),
     "o": meta_quad("window"),
+    "D": (TILE_DOOR, TILE_DOOR + 1, TILE_DOOR + 2, TILE_DOOR + 3),
     "*": (TILE_STAR1, 0, 0, TILE_STAR2),
 }

@@ -44,9 +44,12 @@ rather I stop pushing overnight, say so and I'll keep commits local.
   gravity UP, and drop it (A) on the green rune pad in the ceiling; the door
   beside the pad corner slides open — walk in. Two reorientations minimum.
   In the chamber, A-drop is a gentle straight drop (no throw) on purpose —
-  say the word if you want the full toss back. To reach the chamber before
-  Phase 3.5's door exists: it's warp room 1 in the TEST ROM (tests do it via
-  the mailbox) — or just tell me and I'll wire a temporary door into room01.
+  say the word if you want the full toss back. **The chamber now has a real
+  door (D-017): stand in the doorway at the bottom of the hall's pit and
+  press UP.** Doors everywhere are UP-to-enter; the hall's west doorway leads
+  to a second room, and solving the chamber puzzle walks you out through its
+  exit recess back to the hall. (The old "pre-place a portal to escape the
+  shaft" note is obsolete once you use the doors.)
 - Milestone A (after Phase 3.5) is **your** go/no-go review — I will not record the
   verdict for you; the demo build + a played-through checklist will be waiting.
 
