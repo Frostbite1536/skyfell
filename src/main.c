@@ -40,6 +40,11 @@ static const u16 door_tab[DOOR_N][8] = {
     {2, 992, 1007, 432, 463, 0, 40, 418}, /* room02 east door -> the hall */
 };
 
+/* per-room default entry (hand-tabled per D-016; used by the TEST warp
+ * mailbox and the death respawn) */
+static u16 room_entry_x(u8 id) { return (id == 2) ? 88 : SPAWN_X; }
+static u16 room_entry_y(u8 id) { return (id == 2) ? 434 : SPAWN_Y; }
+
 /* full mode/room switch under force-blank (the TEST warp mailbox and the
  * door fades share this one path) */
 static void goto_room(u8 id, u16 x, u16 y)
@@ -105,7 +110,8 @@ extern u16 dbg_fizz;
 extern u16 dbg_mainv;
 extern u16 dbg_prof0;
 extern u16 dbg_prof1;
-extern u16 dbg_exit; /* +68: puzzle exit reached (chamber.c) */
+extern u16 dbg_exit;  /* +68: puzzle exit reached (chamber.c) */
+extern u16 dbg_death; /* +70: deaths since boot */
 #endif
 
 int main(void)
@@ -167,6 +173,7 @@ int main(void)
     dbg_fizz = 0;
     dbg_mainv = 0;
     dbg_exit = 0;
+    dbg_death = 0;
     dbg_magic = 0x51FE;
 #endif
 
@@ -243,6 +250,21 @@ int main(void)
             player_render(); /* OAM shadow; the lib ISR DMAs it */
             ent_render();
 
+            if (ent_hit_player)
+            {
+                /* death (D-018): fade out, reload the CURRENT room at its
+                 * entry — a full reset (portals recalled, entities respawn:
+                 * INV-GAME-001's room-reset guarantee) */
+                ent_hit_player = 0;
+                fade = 1;
+                fade_dst = cur_room_id;
+                fade_px = room_entry_x(cur_room_id);
+                fade_py = room_entry_y(cur_room_id);
+#ifdef TEST_BUILD
+                dbg_death++;
+#endif
+            }
+
             /* doors: UP edge while standing in a doorway (R excluded —
              * R+UP is the aim-lock) */
             if ((pad & KEY_UP) && !(pad & KEY_R))
@@ -285,10 +307,7 @@ int main(void)
         if (dbg_warp & 0x8000)
         {
             u8 rid = (u8)(dbg_warp & 0xFF);
-            if (rid == 2)
-                goto_room(rid, 88, 434); /* room02's floor (D-016 table) */
-            else
-                goto_room(rid, SPAWN_X, SPAWN_Y);
+            goto_room(rid, room_entry_x(rid), room_entry_y(rid));
             fade = 0; /* test warps are instant — cancel any fade */
             fade_lvl = 15;
             vq_set_bright(15);

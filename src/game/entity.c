@@ -77,6 +77,8 @@ static void rebuild_crate_list(void)
 u8 ent_slept; /* a crate went to sleep THIS frame — chamber.c's pad probe
                  runs only on this event (a per-frame probe call cost
                  measured lag frames; chamber.c clears it) */
+u8 ent_hit_player; /* a sentry shot connected — main.c runs the death
+                      fade + room-entry respawn (D-018) */
 
 void ent_wake_all(void)
 {
@@ -107,6 +109,7 @@ void ent_clear_all(void)
     crate_cnt = 0;
     live_cnt = 0;
     ent_slept = 0;
+    ent_hit_player = 0;
 #ifdef TEST_BUILD
     dbg_entn = 0;
 #endif
@@ -555,7 +558,8 @@ static u8 shot_frame(u8 i)
         if (x >= (s16)(player_px() - 1) && x < (s16)(player_px() + PB_W + 1) &&
             y >= player_py() && y < (s16)(player_py() + PB_H))
         {
-            e_type[i] = ET_NONE; /* no damage in Phase 2 (ROADMAP) */
+            ent_hit_player = 1; /* death (Phase 3.5, D-018) */
+            e_type[i] = ET_NONE;
             ent_hide_oam(i);
             return 1;
         }

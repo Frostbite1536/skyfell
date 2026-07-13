@@ -19,6 +19,7 @@
 void ent_clear_all(void);
 void ent_wake_all(void);             /* portal/gravity changes wake crates */
 extern u8 ent_slept; /* crate-sleep event flag (chamber.c pad probe gate) */
+extern u8 ent_hit_player; /* sentry shot connected (main.c death, D-018) */
 void ent_room_init(u8 room);         /* clear + this room's authored spawns */
 u8 ent_spawn(u8 type, u16 x, u16 y); /* box top-left px; 0xFF if pool full */
 void ent_set_face(u8 slot, u8 face); /* sentry aim: 0 right, 1 left */

@@ -58,5 +58,7 @@ dbg_prof0     dsw 1  ; +64 u16  profiling scratch: scanline at a bracketed
 dbg_prof1     dsw 1  ; +66 u16  code path's entry (+64) and exit (+66)
 ; --- Phase 3 appends (2026-07-12) ---
 dbg_exit      dsw 1  ; +68 u16  puzzle exit reached (chamber.c door recess)
-; --- append new fields at +70; never repack (INV-TEST-001) ---
+; --- Phase 3.5 appends (2026-07-13) ---
+dbg_death     dsw 1  ; +70 u16  deaths since boot (main.c, D-018)
+; --- append new fields at +72; never repack (INV-TEST-001) ---
 .ENDS
