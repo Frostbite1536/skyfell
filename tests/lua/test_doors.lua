@@ -66,8 +66,13 @@ H.run(function()
     end, 200, "the exit door opens", 17)
     posset(300, 288)
     H.padScript(function() return { right = true } end) -- world -x at g=2
-    H.waitUntil(function() return H.dbgU8(18) == 0 end, 400,
-                "the recess exits to the hall", 18)
+    H.waitUntil(function() return H.dbgU16(68) == 1 end, 400,
+                "the recess reached (end card shows, D-019)", 18)
+    H.waitFrames(10)
+    H.snap("end_card")
+    H.padScript(function() return { start = true } end)
+    H.waitUntil(function() return H.dbgU8(18) == 0 end, 300,
+                "START returns to the hall", 18)
     H.padScript(nil)
     H.waitFrames(60)
     H.assertEq(read32(4), 256 * 256, "hall re-entry x", 18)

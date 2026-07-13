@@ -7,6 +7,7 @@
 #include "src/game/portal.h"
 
 extern u8 game_mode; /* main.c: 0 room, 1 chamber */
+extern void game_title(u8 kind); /* main.c: title/end card (verb 10) */
 
 #ifdef TEST_BUILD
 extern u16 dbg_cmd;    /* dbg.asm +36 */
@@ -83,6 +84,8 @@ void dbg_poll(void)
         ent_clear_all();
     else if (c == 9)
         chamber_set_gravity((u8)dbg_arg0); /* GRAV_SET(0-3) + rotation */
+    else if (c == 10)
+        game_title((u8)dbg_arg0); /* TITLE(0 = title, 1 = end card) */
     dbg_cmd = 0; /* ack */
 #endif
 }

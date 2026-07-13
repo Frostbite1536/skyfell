@@ -96,6 +96,8 @@ static u8 sh_bright_pend; /* one-shot: the NMI applies then clears (the
                              lib's setScreenOn/Off write $2100 directly at
                              load boundaries — a per-frame shadow would
                              fight them) */
+u8 vq_console; /* 1 while a console-text screen (title/card) is up — the
+                  NMI chains the lib's consoleVblank uploader (D-019) */
 
 void vq_init(void)
 {
@@ -115,6 +117,7 @@ void vq_init(void)
     sh_m7on = 0;
     sh_bright = 0x0F;
     sh_bright_pend = 0;
+    vq_console = 0;
 }
 
 /* Brightness shadow (door fades, D-017): applied INSIDE the NMI only —
@@ -124,6 +127,13 @@ void vq_set_bright(u8 b)
     sh_bright = b;
     sh_bright_pend = 1;
 }
+
+/* The lib's console text uploader (consoles.asm; NOT in any pvsneslib
+ * header — Phase 0's discovery). nmiSet(vq_nmi) displaced the default
+ * handler that called it, so the title/end-card state chains it here,
+ * gated (a lib call per NMI is not free — D-019). Do NOT use
+ * consoleUpdate(): it DMAs to a HARDCODED VRAM $0800. */
+extern void consoleVblank(void);
 
 void vq_set_m7_on(u8 on)
 {
@@ -311,6 +321,8 @@ static void vq_nmi(void)
         sh_bright_pend = 0;
         REG_INIDISP = sh_bright; /* the door fades (vq_set_bright) */
     }
+    if (vq_console)
+        consoleVblank(); /* title/end-card text upload (D-019) */
 
     if (vq_head >= vq_n)
     {

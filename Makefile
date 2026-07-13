@@ -110,7 +110,14 @@ GENCHAM := $(GEN)/chamber.asm $(GEN)/chamber.h
 $(GENCHAM) &: tools/art/mkchamber.py tools/art/mktiles.py assets/maps/chamber01.txt
 	$(PYTHON) tools/art/mkchamber.py
 
-bitmaps: $(GENTILES) $(GENOBJ) $(GENROOMS) $(GENLUT) $(GENCHAM)
+# Title/end-card font: pvsneslib's example font via gfx4snes (Phase 0's
+# rule, restored for D-019)
+$(GEN)/pvsneslibfont.pic $(GEN)/pvsneslibfont.pal &: assets/fonts/pvsneslibfont.png
+	@mkdir -p $(GEN)
+	@cp $< $(GEN)/pvsneslibfont.png
+	$(GFXCONV) -s 8 -o 16 -u 16 -p -e 0 -i $(GEN)/pvsneslibfont.png
+
+bitmaps: $(GENTILES) $(GENOBJ) $(GENROOMS) $(GENLUT) $(GENCHAM) $(GEN)/pvsneslibfont.pic
 
 # rooms.obj: snes_rules collects sources by wildcard at parse time — on a
 # clean tree the generated rooms.asm doesn't exist yet, so append its object
@@ -138,7 +145,7 @@ $(GEN)/chamber.obj: $(GEN)/chamber.asm
 $(ROMNAME).sfc: $(CHAMOBJ)
 
 # incbin consumers must see fresh binaries/headers
-data.obj: $(GENTILES) $(GENOBJ)
+data.obj: $(GENTILES) $(GENOBJ) $(GEN)/pvsneslibfont.pic $(GEN)/pvsneslibfont.pal
 src/game/room.ps: $(GEN)/rooms.h
 src/game/chamber.ps: $(GEN)/chamber.h
 

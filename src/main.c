@@ -45,10 +45,61 @@ static const u16 door_tab[DOOR_N][8] = {
 static u16 room_entry_x(u8 id) { return (id == 2) ? 88 : SPAWN_X; }
 static u16 room_entry_y(u8 id) { return (id == 2) ? 434 : SPAWN_Y; }
 
+/* --- title + end-of-demo card (D-019): pvsneslib console text on a
+ * force-blanked repoint of BG1; the NMI uploads it while vq_console is
+ * set. Release boots into the title; TEST builds reach it via verb 10
+ * (the boot path must not stall the harness). START dismisses into the
+ * hall through goto_room, which reloads everything the card clobbered. */
+extern char tilfont, palfont; /* data.asm (gfx4snes font) */
+u8 in_title; /* 0 live, 1 title, 2 end card (dbgcmd reads none) */
+
+void game_title(u8 kind)
+{
+    u16 i;
+    setScreenOff();
+    consoleSetTextMapPtr(0x6800); /* Phase 0's proven console layout */
+    consoleSetTextGfxPtr(0x3000);
+    consoleSetTextOffset(0x0100);
+    consoleInitText(0, 16 * 2, &tilfont, &palfont);
+    bgSetGfxPtr(0, 0x2000);
+    bgSetMapPtr(0, 0x6800, SC_32x32);
+    setMode(BG_MODE1, 0);
+    bgSetDisable(1);
+    bgSetDisable(2);
+    vq_set_m7_on(0);
+    /* the map region and tile 0 at this gfx base hold stale room VRAM —
+     * blank both (map -> tile 0, tile 0 -> transparent), hide every
+     * sprite, and pin the scroll */
+    fb_vram_fill(0x6800, 0x0000, 0x400);
+    fb_vram_fill(0x2000, 0x0000, 16);
+    for (i = 0; i < 512; i += 4)
+        oamMemory[i + 1] = 0xF0;
+    vq_set_scroll(0, 0);
+    if (kind == 1)
+    {
+        consoleDrawText(9, 9, "THE GYRE TURNS");
+        consoleDrawText(6, 12, "DEMO COMPLETE - THANKS!");
+        consoleDrawText(9, 18, "PRESS START");
+        in_title = 2;
+    }
+    else
+    {
+        consoleDrawText(12, 7, "R I F T");
+        consoleDrawText(7, 10, "THE SKYFELL ENGINE");
+        consoleDrawText(10, 18, "PRESS START");
+        in_title = 1;
+    }
+    vq_console = 1;
+    setScreenOn();
+    lag_frame_counter = 0;
+}
+
 /* full mode/room switch under force-blank (the TEST warp mailbox and the
  * door fades share this one path) */
 static void goto_room(u8 id, u16 x, u16 y)
 {
+    in_title = 0; /* any room switch dismisses a console screen */
+    vq_console = 0;
     if (id == 1)
     {
         game_mode = 1;
@@ -187,10 +238,28 @@ int main(void)
     fade_lvl = 15;
     held_up = 0;
     cur_room_id = 0;
+    in_title = 0;
+#ifndef TEST_BUILD
+    game_title(0); /* release boots into the title; TEST boots straight to
+                      the hall (the harness must not stall) — verb 10
+                      covers the title path under test (D-019) */
+#endif
     while (1)
     {
         pad = padsCurrent(0);
-        if (fade == 1)
+        if (in_title)
+        {
+            /* the world is parked behind the card; START enters the hall
+             * (the end card returns beside the pit, like the recess exit) */
+            if (pad & KEY_START)
+            {
+                if (in_title == 2)
+                    goto_room(0, 256, 418);
+                else
+                    goto_room(0, room_entry_x(0), room_entry_y(0));
+            }
+        }
+        else if (fade == 1)
         {
             /* fading out: 2 brightness steps/frame, world frozen */
             if (fade_lvl >= 2)
@@ -232,12 +301,9 @@ int main(void)
             ent_render();
             if (cham_exit)
             {
-                cham_exit = 0; /* the puzzle recess: back to the hall
-                                  (x 256 — clear of the crate spawn) */
-                fade = 1;
-                fade_dst = 0;
-                fade_px = 256;
-                fade_py = 418;
+                cham_exit = 0;
+                game_title(1); /* the demo's arc ends here: the card;
+                                  START returns beside the pit (D-019) */
             }
         }
         else

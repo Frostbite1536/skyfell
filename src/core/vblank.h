@@ -56,6 +56,10 @@ void vq_set_m7(s16 a, s16 b, s16 c, s16 d, s16 x, s16 y, s16 hofs, s16 vofs);
  * setScreenOn/Off still own load boundaries). */
 void vq_set_bright(u8 b);
 
+/* Console-text screens (title/end card, D-019): while 1, the NMI chains
+ * the lib's consoleVblank text uploader. main.c owns the state. */
+extern u8 vq_console;
+
 #ifdef TEST_BUILD
 void vq_test_budget(u16 bytes); /* override the drain's byte budget (0 = off) */
 u16 vq_scanline(void); /* latch + read the current vertical counter (the
