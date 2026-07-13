@@ -35,7 +35,7 @@ end
 -- forward chain: {stand x, stand y, arrival room, arrival entry x}
 local CHAIN = {
     { 996, 418, 4, 40 },  -- room03 east (floor) -> room04 (west plateau)
-    { 980, 370, 5, 40 },  -- room04 east (plateau) -> room05
+    { 950, 370, 5, 40 },  -- room04 east (plateau) -> room05
     { 996, 418, 6, 40 },  -- room05 east (floor) -> room06
     { 980, 370, 7, 40 },  -- room06 east (plateau) -> room07
     { 996, 418, 8, 40 },  -- room07 east (floor) -> room08
