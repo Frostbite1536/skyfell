@@ -8,6 +8,7 @@
 
 #include <snes.h>
 
+#include "src/audio/sound.h"
 #include "src/core/dbgcmd.h"
 #include "src/core/rng.h"
 #include "src/core/vblank.h"
@@ -100,6 +101,7 @@ static void goto_room(u8 id, u16 x, u16 y)
 {
     in_title = 0; /* any room switch dismisses a console screen */
     vq_console = 0;
+    sfx_quiet(8); /* the load re-grounds the player — no phantom LAND */
     if (id == 1)
     {
         game_mode = 1;
@@ -163,12 +165,17 @@ extern u16 dbg_prof0;
 extern u16 dbg_prof1;
 extern u16 dbg_exit;  /* +68: puzzle exit reached (chamber.c) */
 extern u16 dbg_death; /* +70: deaths since boot */
+extern u16 dbg_audio; /* +72: sound.c owns live (D-020) */
+extern u16 dbg_sfx;   /* +74: sound.c owns live */
 #endif
 
 int main(void)
 {
     u16 t;
     u16 pad;
+
+    audio_boot(); /* SPC700 handshake FIRST — NMI is still off here and
+                     spcBoot must not be interrupted (D-020) */
 
     setMode(BG_MODE1, 0);
     bgSetDisable(1); /* BG2 parallax comes later */
@@ -189,6 +196,11 @@ int main(void)
     room_load(0, 0, 288); /* camera lands at the spawn corner */
     player_init(SPAWN_X, SPAWN_Y);
     ent_room_init(0);
+
+    /* soundbank -> ARAM (slow: two module transfers + 6 effects) BEFORE the
+     * debug magic below — tests gate on the magic, so the load must be done
+     * by the time they start counting frames (D-020) */
+    audio_start();
 
 #ifdef TEST_BUILD
     /* Zero the whole block, magic LAST: magic means "valid from here on".
@@ -225,6 +237,8 @@ int main(void)
     dbg_mainv = 0;
     dbg_exit = 0;
     dbg_death = 0;
+    dbg_sfx = 0; /* dbg_audio NOT re-zeroed: audio_start owns it (like
+                    dbg_room — real state, not garbage) */
     dbg_magic = 0x51FE;
 #endif
 
@@ -322,6 +336,7 @@ int main(void)
                  * entry — a full reset (portals recalled, entities respawn:
                  * INV-GAME-001's room-reset guarantee) */
                 ent_hit_player = 0;
+                sfx_play(SFX_DEATH);
                 fade = 1;
                 fade_dst = cur_room_id;
                 fade_px = room_entry_x(cur_room_id);
@@ -365,6 +380,9 @@ int main(void)
 #ifdef TEST_BUILD
         dbg_prof1 = vq_scanline(); /* stage bracket: after entities+render */
 #endif
+
+        audio_frame(); /* SNESMOD message pump — inside the dbg_mainv
+                          bracket so its cost shows in the frame probe */
 
 #ifdef TEST_BUILD
         dbg_poll(); /* Lua test mailbox (dbgcmd.c) — may warp the player */

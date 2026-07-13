@@ -4,13 +4,43 @@
 
 ## Resume prompt (paste into a fresh/compacted session)
 
-> Continue RIFT: The Skyfell Engine, the SNES portal-gun game at `C:\Users\LCM\Github\skyfell`, building autonomously per Jeremy's standing authorization (commit per unit, push per phase/milestone, route his decisions to docs/JEREMY-INBOX.md and build around them). Read `docs/CONTINUATION.md` IN FULL first (env: the proven gate one-liner, MSYS2 make, MesenCE facts), plus the memory files `tcc816-mesen-traps` and `prophet-reuse-audit` (toolchain codegen traps — compound guards, ~1k-cycle calls, VMAIN $02 DMA, no function-scope statics/stack arrays, measure-with-scanline-probes-before-optimizing). Then JEREMY-INBOX (don't build past open items). State: Phases 0-3 BUILD-COMPLETE (Phase 3's only open box is Jeremy's spin-feel gate); gate baseline **14/14** cold-clean. NEXT: Phase 3.5 demo dressing → MILESTONE A (Jeremy's go/no-go): Zone 1 "The Gantries" 7 authored Mode 1 rooms (move → portal → fling → crate → sentry, gated door into the chamber; needs the room-id pipeline to grow past room 0 — mkmaps globs room*.txt, room.c/ent_room_init hardcode room01), door-based transitions (fade + force-blank), title screen + death/respawn + end card, the audio spike (1 SNESMOD track + 6 SFX through smconv, INV-AUD-001), tile-budget audit (≤384 BG tiles, reuse map in assets/README). Rails: goldens are HARVESTED from the ROM (temp test_zzz*.lua probes, deleted before commit; a change needs a DECISIONS entry); debug block append-only (next slot **+70**); dbg_lag==0 asserted everywhere; every phase ends with a cold-clean `make test`, docs updated, commit+push, CI checked.
+> Continue RIFT: The Skyfell Engine, the SNES portal-gun game at `C:\Users\LCM\Github\skyfell`, building autonomously per Jeremy's standing authorization (commit per unit, push per phase/milestone, route his decisions to docs/JEREMY-INBOX.md and build around them). Read `docs/CONTINUATION.md` IN FULL first (env: the proven gate one-liner, MSYS2 make, MesenCE facts), plus the memory files `tcc816-mesen-traps` and `prophet-reuse-audit` (toolchain codegen traps — compound guards, ~1k-cycle calls, VMAIN $02 DMA, no function-scope statics/stack arrays, measure-with-scanline-probes-before-optimizing). Then JEREMY-INBOX (don't build past open items). State: Phases 0-3 COMPLETE (spin-feel gate GREEN — Jeremy 2026-07-12), Phase 3.5 units A-E done (multi-room, doors, death, title/end cards, AUDIO — D-016..D-020); gate baseline **19/19** cold-clean. NEXT (in order): Zone 1 "The Gantries" 7 authored Mode 1 rooms (move → portal → fling → crate → sentry, gated door into the chamber; grow the per-room spawn/entry tables per D-016 — a generated spawn-from-ASCII table earns itself here; check ledges vs the 35.6px apex), tile-budget audit (≤384 BG tiles, reuse map in assets/README.md), then the MILESTONE A build + played-through checklist for Jeremy (his go/no-go — do NOT record his verdict). Rails: goldens are HARVESTED from the ROM (temp test_zzz*.lua probes, deleted before commit; a change needs a DECISIONS entry); debug block append-only (next slot **+76**); dbg_lag==0 asserted everywhere; every phase ends with a cold-clean `make test`, docs updated, commit+push, CI checked.
 
-## Current state (2026-07-13 early, Phase 3.5 units A+B+C+D done)
+## Current state (2026-07-13, Phase 3.5 units A-E done — audio is IN)
+
+- **Unit E COMPLETE — the audio spike (D-020), gate 19/19 cold-clean**: R3 is
+  dead — the LAST unproven pipeline works end to end. `tools/audio/mkit.py`
+  synthesizes two Impulse Tracker modules deterministically (no binary
+  assets): sfx.it (6 effects: jump, fire, portal-open, teleport, land,
+  death) + track01.it ("The Gyre Hums" — music-box/bass/air ambient loop,
+  channels 1-6 only; snesmod's SFX voice is channel 8). smconv → soundbank
+  in dedicated ROM bank 5 (snes_rules' own AUDIOFILES/SOUNDBANK hook);
+  **INV-AUD-001 enforced at build time** (tools/audio/checkbank.py: sfx +
+  largest module ≤ 58KB, .bnk ≤ 32KB — build fails otherwise). Runtime:
+  src/audio/sound.c — spcBoot is main()'s FIRST statement (NMI off), the
+  soundbank load runs BEFORE the debug magic (tests gate on magic; the
+  slow load broke 4 tests' ack windows until reordered), spcProcess once
+  per frame (measured invisible: idle mainv max 53, lag 0). SFX hooks:
+  player.c (jump/land edge + fire_shot), chamber.c (jump/land/cham_fire),
+  portal.c (try_place commit = OPEN, transit = TELEPORT), main.c (death).
+  `sfx_quiet(8)` after every room load kills the phantom re-ground LAND
+  thud (probe-caught). dbg: +72 audio ready/last-id, +74 sfx counter —
+  **next append +76**. test_audio: driver bytes resident at ARAM $0400
+  (emu.memType.spcRam!), DSP register file must CHANGE over 60 frames
+  (music provably playing — spcDspRegisters), jump→+2 sfx, verb-6
+  place→OPEN, lag 0. track01.it duplicates the 6 SFX samples as its own
+  1-6 (spcLoadEffect indexing ambiguity — both readings land the same
+  sounds; trim when hardware proves which). Jeremy's EARS are the open
+  gate (INBOX): mix knobs in sound.c, composition in mkit.py.
+- **Jeremy's feel verdict (2026-07-12, in the INBOX Resolved): "The feel
+  of the game is good, it looks good so far"** — Phase 3's spin-feel gate
+  is GREEN; tuning ships as-is.
+
+## Previous state (2026-07-13 early, Phase 3.5 units A+B+C+D done)
 
 - **Unit D COMPLETE — title + end card (D-019), gate 18/18 cold-clean + release flavor builds**: console-text cards (Phase 0's layout, font restored); `vq_console` chains the lib's `consoleVblank` in the NMI; RELEASE boots into the title, TEST summons via **verb 10**; the chamber's puzzle exit shows the END CARD (START → beside the pit). Card entry blanks map/tile-0/OAM (stale-VRAM scar).
 - **Unit C COMPLETE — death/respawn (D-018), gate was 17/17**: a sentry shot kills; death rides the D-017 fade to the current room's entry as a FULL reload (the INV-GAME-001 reset). `dbg_death` +70; next dbg append **+72**. `room_entry_x/y(id)` = the per-room entry table (warps + respawn share it).
-- **Phase 3.5 REMAINING after this**: the audio spike (1 SNESMOD track through smconv + 6 SFX, 2 of 8 voices reserved, INV-AUD-001 build-time size assert — R3, the last unproven pipeline); Zone 1's 7 authored rooms (spawn tables per D-016, ledges vs the 35.6px apex) + tile-budget audit (≤384 BG tiles, reuse map in assets/README); the MILESTONE A build + played-through checklist for Jeremy (his go/no-go, INBOX).
+- **Phase 3.5 REMAINING after this**: Zone 1's 7 authored rooms (spawn tables per D-016, ledges vs the 35.6px apex) + tile-budget audit (≤384 BG tiles, reuse map in assets/README); the MILESTONE A build + played-through checklist for Jeremy (his go/no-go, INBOX). *(The audio spike shipped as unit E, D-020 — see Current state.)*
 - **Unit B COMPLETE — doorway transitions (D-017), gate 16/16 cold-clean (`6be341f`)**: doors are UP-to-enter trigger rects (up-gating is LOAD-BEARING — auto-triggers collide with scripted test paths; R excluded = aim-lock); fades via a one-shot NMI brightness shadow (`vq_set_bright`, vblank.c); `goto_room()` in main.c is the one force-blank switch (TEST warps use it too); the chamber's puzzle recess is a REAL exit back to the hall. Doors: hall west ↔ room02 east, hall pit → chamber. Door visual = 'D' metatile (tiles 35-38, appended after the PINNED portal tiles 27-34). A transition runs ~40-60 real frames (live-map copy + force-blank redraw dominate) — fine for doors.
 - **Unit A COMPLETE — multi-room runtime (D-016), gate was 15/15**: `room_map` = one 16KB WRAM live map in bank $7F (chamram.asm); `room_load(id)` copies the ROM room + re-sums the copy; every hot path AND seams.asm index the one label; rooms share the tileset (`room01_att` everywhere; roomglue asserts att identity); room02 proof room + `test_room2`; spawns hand-tabled by id (generated table comes with Zone 1 authoring). Room ids: 1=chamber, 0→room01, 2→room02.
 - **Phase 3.5 REMAINING (in order)**: (c) death/respawn (sentry-shot contact kills; respawn at room entry via the D-017 fade path) + title card + end-of-demo card; (d) audio spike (1 SNESMOD track through smconv + 6 SFX, 2 voices reserved, INV-AUD-001 size assert); (e) Zone 1's 7 authored rooms (grow ent spawn tables per D-016; check ledges vs the 35.6px apex) + tile-budget audit (≤384 BG tiles, reuse map in assets/README); then the MILESTONE A build + checklist for Jeremy (his go/no-go).
@@ -51,6 +81,8 @@
 - Deeper toolchain lore: `../prophet/docs/CONTINUATION.md` ("Environment facts" + "Hardware/toolchain lessons").
 
 ## Next actions (in order) — Phase 3.5: Demo Dressing → MILESTONE A
+
+*(1-4 below are DONE as units A-E — kept for the design notes. Live work: Zone 1 authoring, then the tile audit, then the Milestone A handoff.)*
 
 1. **Zone 1 "The Gantries", 7 authored Mode 1 rooms** teaching move → portal → fling → crate → sentry, with a gated door into the chamber. FIRST the pipeline must grow past room 0: mkmaps.py globs `room*.txt` already, but roomglue/rooms.asm, `room_load`, collision reads (`room01_map/att` direct-indexed in player.c/entity.c/portal.c — the hot-path externs!) and `ent_room_init` all hardcode room01. Design the multi-room story the same way the chamber went: keep hot paths direct-indexed (a WRAM live map per D-015, or per-room labels + a load-time pointer... decide with a DECISIONS entry).
 2. **Door transitions**: fade + force-blank reload; death/respawn at room entry.

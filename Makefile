@@ -19,6 +19,12 @@ endif
 
 GEN := src/data/generated
 
+# Audio (D-020): defining AUDIOFILES/SOUNDBANK before the include makes
+# snes_rules add soundbank.asm to SFILES and run smconv over the .it files.
+# sfx.it MUST stay first (spcLoadEffect indices; INV-AUD-001 checks on it).
+AUDIOFILES := $(GEN)/audio/sfx.it $(GEN)/audio/track01.it
+export SOUNDBANK := $(GEN)/audio/soundbank
+
 include $(PVSNESLIB_HOME)/devkitsnes/snes_rules
 
 # snes_rules' Windows branch (ifeq ($(OS),Windows_NT)) rebuilds this path by
@@ -45,7 +51,8 @@ PYTHON ?= python
 # auto-intermediate deletion and would carry their flavor across the swap.
 FLAVOR := $(if $(filter 1,$(TEST)),test,release)
 FLAVORPS = src/main src/core/vblank src/core/dbgcmd src/core/rng src/game/room \
-           src/game/player src/game/entity src/game/portal src/game/chamber
+           src/game/player src/game/entity src/game/portal src/game/chamber \
+           src/audio/sound
 
 flavorcheck:
 	@mkdir -p build
@@ -109,6 +116,25 @@ $(GENLUT): tools/mklut.py
 GENCHAM := $(GEN)/chamber.asm $(GEN)/chamber.h
 $(GENCHAM) &: tools/art/mkchamber.py tools/art/mktiles.py assets/maps/chamber01.txt
 	$(PYTHON) tools/art/mkchamber.py
+
+# Audio pipeline (D-020): mkit.py synthesizes the .it modules; snes_rules'
+# own rule runs smconv over them ($(SOUNDBANK).asm: $(AUDIOFILES)); the
+# INV-AUD-001 stamp asserts the ARAM budget on smconv's generated sizes.
+SMCONVFLAGS := -s -o $(SOUNDBANK) -V -b 5 -f
+
+$(AUDIOFILES) &: tools/audio/mkit.py
+	@mkdir -p $(GEN)/audio
+	$(PYTHON) tools/audio/mkit.py
+
+# smconv's one rule names only the .asm; .h/.bnk appear with it
+$(SOUNDBANK).h $(SOUNDBANK).bnk: $(SOUNDBANK).asm ;
+
+$(GEN)/audio/.aramok: tools/audio/checkbank.py $(SOUNDBANK).asm
+	$(PYTHON) tools/audio/checkbank.py $(SOUNDBANK).h
+	@touch $@
+
+$(ROMNAME).sfc: $(GEN)/audio/.aramok
+src/audio/sound.ps: $(SOUNDBANK).h
 
 # Title/end-card font: pvsneslib's example font via gfx4snes (Phase 0's
 # rule, restored for D-019)

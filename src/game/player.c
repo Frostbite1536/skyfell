@@ -1,5 +1,6 @@
 #include "src/game/player.h"
 
+#include "src/audio/sound.h"
 #include "src/game/entity.h"
 #include "src/game/portal.h"
 #include "src/game/room.h"
@@ -216,7 +217,10 @@ static void fire_shot(u8 type)
                      (u16)((s16)(px >> 8) + (PB_W >> 1) - (SHOT_BOX >> 1)),
                      (u16)((s16)(py >> 8) + 8));
     if (s != 0xFF)
+    {
         ent_set_vel(s, aim_vx[aim], aim_vy[aim]);
+        sfx_play(SFX_FIRE);
+    }
 }
 
 void player_update(u16 pad)
@@ -225,6 +229,7 @@ void player_update(u16 pad)
     s16 t;
     u8 press_b = 0;
     u8 oncrate;
+    u8 wasg;
     u8 tp;
 
     aiming = (u8)((pad & KEY_R) ? 1 : 0);
@@ -291,6 +296,7 @@ void player_update(u16 pad)
         grounded = 0;
         coyote = 0;
         jbuf = 0;
+        sfx_play(SFX_JUMP);
     }
 
     /* --- gravity --- */
@@ -376,8 +382,11 @@ void player_update(u16 pad)
     /* --- ground probe (one px below the feet) + coyote --- */
     x = (s16)(px >> 8);
     y = (s16)(py >> 8);
+    wasg = grounded;
     grounded = (u8)(oncrate ||
                     (vy >= 0 && solid_row(x, (s16)((s16)(y + PB_H) >> 3))));
+    if (grounded && !wasg)
+        sfx_play(SFX_LAND); /* air -> ground edge (D-020) */
     if (grounded)
         coyote = P_COYOTE_F;
     else if (coyote)

@@ -1,5 +1,6 @@
 #include "src/game/portal.h"
 
+#include "src/audio/sound.h"
 #include "src/core/vblank.h"
 #include "src/game/entity.h"
 #include "src/game/room.h"
@@ -465,6 +466,7 @@ u8 portal_try_place(u8 color, u16 tx, u16 ty, u8 orient, u8 self_ent)
             rebbox();
             refresh(color);
             ent_wake_all(); /* the world's solidity changed under crates */
+            sfx_play(SFX_OPEN);
 #ifdef TEST_BUILD
             dbg_mirror();
 #endif
@@ -674,6 +676,7 @@ u8 portal_check(u8 axis, s32 *mx, s32 *my, s16 *mvx, s16 *mvy, u8 *cool,
         *mvy = nvy;
         *cool = TP_COOLDOWN;
         portal_last_exit_or = out_or;
+        sfx_play(SFX_TELEPORT);
 #ifdef TEST_BUILD
         dbg_tpcount++;
 #endif

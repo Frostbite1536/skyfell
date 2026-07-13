@@ -60,5 +60,8 @@ dbg_prof1     dsw 1  ; +66 u16  code path's entry (+64) and exit (+66)
 dbg_exit      dsw 1  ; +68 u16  puzzle exit reached (chamber.c door recess)
 ; --- Phase 3.5 appends (2026-07-13) ---
 dbg_death     dsw 1  ; +70 u16  deaths since boot (main.c, D-018)
-; --- append new fields at +72; never repack (INV-TEST-001) ---
+dbg_audio     dsw 1  ; +72 u16  low8: audio ready (1 after boot+load+play,
+                     ;          D-020); high8: last SFX id + 1 (sound.c)
+dbg_sfx       dsw 1  ; +74 u16  SFX plays since boot (sound.c)
+; --- append new fields at +76; never repack (INV-TEST-001) ---
 .ENDS

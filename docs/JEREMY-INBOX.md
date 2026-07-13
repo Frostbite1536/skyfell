@@ -50,6 +50,14 @@ rather I stop pushing overnight, say so and I'll keep commits local.
   to a second room, and solving the chamber puzzle walks you out through its
   exit recess back to the hall. (The old "pre-place a portal to escape the
   shaft" note is obsolete once you use the doors.)
+- **Audio (new, D-020)**: the game now has music + 6 SFX — all synthesized
+  (a music-box-and-bass ambient loop, "The Gyre Hums"; jump/fire/portal-open/
+  teleport/land/death effects). Your ears are the gate I can't run: `make run`
+  and listen. Knobs if anything grates: per-SFX volume/pitch tables at the top
+  of `src/audio/sound.c`, music volume = `spcSetModuleVolume(180)` there too,
+  the composition itself = `tools/audio/mkit.py` (melody/bass tables at the
+  bottom). Real tracked music is Phase 6 — a musician's .it file drops into
+  the Makefile's AUDIOFILES unchanged.
 - Milestone A (after Phase 3.5) is **your** go/no-go review — I will not record the
   verdict for you; the demo build + a played-through checklist will be waiting.
 
@@ -57,6 +65,11 @@ rather I stop pushing overnight, say so and I'll keep commits local.
 
 ## Resolved
 
+- **Phase 3 spin-feel gate + overall look (2026-07-12, post units A-D)**:
+  "The feel of the game is good, it looks good so far." — Phase 3's
+  subjective gate is GREEN; tuning stays as shipped (ROT_STEP=2 etc.).
+  Feel gates in item 4 stay listed as knobs for future rounds, but nothing
+  is blocked on them now.
 - **License (2026-07-12)**: ALL RIGHTS RESERVED for now, may open-source
   later — D-009 updated, README updated.
 - **INV-ENG-004 exit-only teleport revalidation (2026-07-12)**: ratified

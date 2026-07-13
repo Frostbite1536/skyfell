@@ -9,8 +9,8 @@ Source of truth for everything the converters consume. `src/data/` output is gen
 | `sprites/` | indexed PNG (+`.json` meta: frame grid, palette slot) | `gfx4snes` | 4bpp; 16 colors/palette; player 16×32 |
 | `tilesets/` | indexed PNG, one sheet per zone | `gfx4snes` | Mode 1: 4bpp. Chamber sheets: 8bpp, **colors 0–127 only** (INV-HW-006) |
 | `maps/` | Tiled `.tmx` (+ tileset `.tsx`) | `tmx2snes` (Phase 0 spike; fallback `tools/mapc.py`) | tile properties carry collision + material (brass/glass/magnet/hazard/water) |
-| `music/` | Impulse Tracker `.it` | `smconv` → SNESMOD soundbank | subset of IT effects only; ARAM budget asserted (INV-AUD-001) |
-| `sfx/` | 16-bit mono WAV | `snesbrr` → BRR | 6 SFX for Milestone A |
+| `music/` | Impulse Tracker `.it` | `smconv` → SNESMOD soundbank | subset of IT effects only; ARAM budget asserted at build time (INV-AUD-001, `tools/audio/checkbank.py`) |
+| *(sfx)* | IT samples in the FIRST soundbank module | `smconv` (same pipeline) | **D-020: snesbrr dropped** — SFX are sfx.it's samples via spcLoadEffect. Milestone A's modules are synthesized by `tools/audio/mkit.py` (no files in this tree yet); a musician's `.it` drops into the Makefile's AUDIOFILES unchanged |
 | `palettes/` | shared palette PNGs/act | `gfx4snes` | zone palette stories in GDD |
 
 ## Tile-budget discipline

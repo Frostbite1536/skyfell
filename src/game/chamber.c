@@ -1,5 +1,6 @@
 #include "src/game/chamber.h"
 
+#include "src/audio/sound.h"
 #include "src/core/vblank.h"
 #include "src/data/generated/chamber.h"
 #include "src/game/entity.h"
@@ -143,7 +144,10 @@ static void cham_fire(u8 type)
                   (u16)((s16)(cpx >> 8) + (box_w() >> 1) - (SHOT_BOX >> 1)),
                   (u16)((s16)(cpy >> 8) + (box_h() >> 1) - (SHOT_BOX >> 1)));
     if (s != 0xFF)
+    {
         ent_set_vel(s, wx, wy);
+        sfx_play(SFX_FIRE);
+    }
 }
 
 static void matrix_apply(void)
@@ -392,6 +396,7 @@ void chamber_frame(u16 pad)
     s16 x, y, t;
     s16 wvx, wvy;
     u8 press_b = 0;
+    u8 wasg;
     u8 w = box_w();
     u8 h = box_h();
 
@@ -476,6 +481,7 @@ void chamber_frame(u16 pad)
         grounded = 0;
         coyote = 0;
         jbuf = 0;
+        sfx_play(SFX_JUMP);
     }
     if (!grounded)
     {
@@ -563,6 +569,7 @@ void chamber_frame(u16 pad)
     /* --- ground probe: one px beyond the feet face (along G) --- */
     x = (s16)(cpx >> 8);
     y = (s16)(cpy >> 8);
+    wasg = grounded;
     if (grav == 0)
         grounded = (u8)(gv >= 0 && csolid_row(x, (s16)((s16)(y + h) >> 3), w));
     else if (grav == 2)
@@ -571,6 +578,8 @@ void chamber_frame(u16 pad)
         grounded = (u8)(gv >= 0 && csolid_col((s16)((s16)(x - 1) >> 3), y, h));
     else
         grounded = (u8)(gv >= 0 && csolid_col((s16)((s16)(x + w) >> 3), y, h));
+    if (grounded && !wasg)
+        sfx_play(SFX_LAND);
     if (grounded)
         coyote = P_COYOTE_F;
     else if (coyote)

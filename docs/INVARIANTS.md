@@ -79,7 +79,7 @@ Non-negotiable truths. **If a change violates one of these, it is a bug or a pro
 
 ### INV-AUD-001: The soundbank fits ARAM
 **Rule**: Driver + samples + longest module ≤ 64KB together; 2 of 8 voices reserved for SFX.
-**Enforcement**: build-time size assert on `smconv` output; worst-case-chaos audio test.
+**Enforcement**: build-time size assert on `smconv` output (`tools/audio/checkbank.py`, live since D-020 2026-07-13: sfx module + largest music module ≤ 58KB — snesmod's documented post-driver budget — and the `.bnk` ≤ its dedicated 32KB bank; the build fails otherwise). Voice reserve: music authored on channels 1-6 only (mkit.py); snesmod's effect voice is channel 8. Worst-case-chaos audio test arrives with Phase 6's full suite.
 
 ---
 

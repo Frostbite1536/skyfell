@@ -49,7 +49,9 @@ Tests run the **real ROM** in MesenCE headless. The invocation proven in Phase 0
 | +66 | u16 | stage bracket: scanline after entities + renders |
 | +68 | u16 | puzzle exit reached (chamber.c door recess; re-zeroed per chamber load) |
 | +70 | u16 | deaths since boot (main.c, D-018) |
-| +72… | — | **append new fields here; never repack** |
+| +72 | u16 | low8: audio ready (sound.c, D-020); high8: last SFX id + 1 |
+| +74 | u16 | SFX plays since boot (sound.c; room loads mute 8 frames) |
+| +76… | — | **append new fields here; never repack** |
 
 ## Test mailbox verbs (`+36`; game acks by writing 0 back)
 
@@ -66,6 +68,11 @@ Tests run the **real ROM** in MesenCE headless. The invocation proven in Phase 0
 | 9 | GRAV_SET | arg0 = gravity 0-3 (chamber) — chamber_set_gravity + the rotation tween |
 | 10 | TITLE | arg0 = 0 title / 1 end card (D-019 — release boots into the title; TEST builds summon it here) |
 
+**Audio ground truth (D-020)**: the SNESMOD driver's first bytes sit at ARAM `$0400`
+(`cd 00 e8 00…`, pvsneslib 4.5.0 sm-spc — readable via `emu.read(a, emu.memType.spcRam)`),
+and `emu.memType.spcDspRegisters` exposes the live DSP register file (it must CHANGE
+over time while the module plays — test_audio's "music is actually playing" assert).
+
 **VRAM test scratch**: word addresses `0x7C00+` are reserved for tests — no
 game system may ever write there (VQ_STRESS lands its patterns there and Lua
 reads them back).
@@ -78,7 +85,7 @@ Stop-code convention: 0 pass · 1 generic · 12 Lua error · 13 body-ended-witho
 
 ## Test inventory (grows per phase — see ROADMAP gates)
 
-LIVE (13): `test_boot` · `test_room` (pipeline + 4-direction live seam streaming) · `test_vblank` (drain throughput/defer/overflow) · `test_walk`, `test_jump` (GOLDEN numbers frozen from the ROM 2026-07-12), `test_replay` (INV-ENG-002 — green forever) · `test_fling` (exact momentum conservation + portal render), `test_portal_rules` (the INV-ENG-004 validator), `test_sentry` (the reflect kill) · Phase 3: `test_chamber` (Mode 7 load + 4-gravity cycle), `test_gravity_cycle` (portal-driven, bit-identical ×2), `test_chamber_drone` (leash patrol, tween freeze+hide, reload determinism), `test_chamber_fire` (pad-driven: aim-lock, both colors fired onto chamber brass, transit → gravity flip, Select recall), `test_chamber_puzzle` (the scripted FULL SOLVE: 2 reorientations + the crate on the ceiling pad → door opens → exit) · Phase 3.5: `test_room2` (D-016 multi-room: per-room checksum on the live-map copy, authored spawns, physics + portals on room02, round-trip reload), `test_doors` (D-017: UP-to-enter doorway fades hall ↔ room02 ↔ chamber + the chamber recess's real exit), `test_death` (D-018: sentry shot kills, fade-respawn at the room entry as a full reset), `test_title` (D-019: the card parks the world, START reloads the hall; test_doors covers the end card) · STILL TO COME — Phase 4: `test_save_roundtrip`, `test_gate`
+LIVE (19): `test_boot` · `test_room` (pipeline + 4-direction live seam streaming) · `test_vblank` (drain throughput/defer/overflow) · `test_walk`, `test_jump` (GOLDEN numbers frozen from the ROM 2026-07-12), `test_replay` (INV-ENG-002 — green forever) · `test_fling` (exact momentum conservation + portal render), `test_portal_rules` (the INV-ENG-004 validator), `test_sentry` (the reflect kill) · Phase 3: `test_chamber` (Mode 7 load + 4-gravity cycle), `test_gravity_cycle` (portal-driven, bit-identical ×2), `test_chamber_drone` (leash patrol, tween freeze+hide, reload determinism), `test_chamber_fire` (pad-driven: aim-lock, both colors fired onto chamber brass, transit → gravity flip, Select recall), `test_chamber_puzzle` (the scripted FULL SOLVE: 2 reorientations + the crate on the ceiling pad → door opens → exit) · Phase 3.5: `test_room2` (D-016 multi-room: per-room checksum on the live-map copy, authored spawns, physics + portals on room02, round-trip reload), `test_doors` (D-017: UP-to-enter doorway fades hall ↔ room02 ↔ chamber + the chamber recess's real exit), `test_death` (D-018: sentry shot kills, fade-respawn at the room entry as a full reset), `test_title` (D-019: the card parks the world, START reloads the hall; test_doors covers the end card) · `test_audio` (D-020: driver resident in ARAM, DSP registers moving = music playing, jump→JUMP+LAND and verb-6 place→OPEN on the +74 counter, zero lag with spcProcess in the loop) · STILL TO COME — Phase 4: `test_save_roundtrip`, `test_gate`
 
 Portal mirror gotcha (+19/+20): the cleared state keeps the OLD orient in bits 0-1 — test "recalled" as `bit7 down` (`< 0x80`), never `== 0`.
 

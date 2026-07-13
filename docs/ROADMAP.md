@@ -163,8 +163,8 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 ### Included Features
 
 - [ ] Zone 1 layout: 7 Mode 1 rooms teaching move → portal → fling → crate → sentry, gated door into the chamber; door-based transitions (fade + force-blank reload)
-- [ ] Title screen (logo, START), death/respawn at room entry, end-of-demo card
-- [ ] Audio spike end-to-end: 1 SNESMOD track through `smconv` + 6 SFX (jump, fire, portal-open, teleport, land, death) — proves R3 before Phase 6 composes more; SFX reserve 2 of the 8 DSP voices
+- [x] Title screen (logo, START), death/respawn at room entry, end-of-demo card *(D-018/D-019, 2026-07-13; console-text cards — art logo is a later polish pass)*
+- [x] Audio spike end-to-end: 1 SNESMOD track through `smconv` + 6 SFX (jump, fire, portal-open, teleport, land, death) — proves R3 before Phase 6 composes more; SFX reserve 2 of the 8 DSP voices *(D-020, test_audio, 2026-07-13; music on ch 1-6, snesmod SFX voice = ch 8)*
 - [ ] Tile-budget audit: Zone 1 sheet ≤ 384 BG tiles, documented reuse map in `assets/README.md`
 - [ ] Playtest build handed to Jeremy + feedback logged in DECISIONS.md
 
@@ -231,8 +231,8 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 ### Included Features
 
 - [ ] 5–6 tracks (title, 3 zone themes, chamber ambient, boss) as Impulse Tracker modules through `smconv`; per-track ARAM budget asserted at build time (INV-AUD-001)
-- [ ] Composition pipeline decision (D-open): hand-authored in OpenMPT vs. `tools/trk.py` score-DSL → .it writer; Phase 3.5's spike informs which
-- [ ] Full SFX bank via `snesbrr`; voice-stealing priority table
+- [ ] Composition pipeline decision (D-open): hand-authored in OpenMPT vs. growing `tools/audio/mkit.py`'s IT writer into a score-DSL; the Phase 3.5 spike (D-020) proved the writer end-to-end, so both routes are open
+- [ ] Full SFX bank as first-module IT samples through `smconv` (D-020 — snesbrr dropped); voice-stealing priority table
 - [ ] Mix pass on real output (record from MesenCE, listen)
 
 ### Success Criteria
