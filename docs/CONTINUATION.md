@@ -6,7 +6,26 @@
 
 > Continue RIFT: The Skyfell Engine, the SNES portal-gun game at `C:\Users\LCM\Github\skyfell`, building autonomously per Jeremy's standing authorization (commit per unit, push per phase/milestone, route his decisions to docs/JEREMY-INBOX.md and build around them). Read `docs/CONTINUATION.md` IN FULL first (env: the proven gate one-liner, MSYS2 make, MesenCE facts), plus the memory files `tcc816-mesen-traps` and `prophet-reuse-audit` (toolchain codegen traps — compound guards, ~1k-cycle calls, VMAIN $02 DMA, no function-scope statics/stack arrays, measure-with-scanline-probes-before-optimizing). Then JEREMY-INBOX (don't build past open items). State: Phases 0-3 COMPLETE (spin-feel gate GREEN — Jeremy 2026-07-12), Phase 3.5 units A-E done (multi-room, doors, death, title/end cards, AUDIO — D-016..D-020); gate baseline **19/19** cold-clean. NEXT (in order): Zone 1 "The Gantries" 7 authored Mode 1 rooms (move → portal → fling → crate → sentry, gated door into the chamber; grow the per-room spawn/entry tables per D-016 — a generated spawn-from-ASCII table earns itself here; check ledges vs the 35.6px apex), tile-budget audit (≤384 BG tiles, reuse map in assets/README.md), then the MILESTONE A build + played-through checklist for Jeremy (his go/no-go — do NOT record his verdict). Rails: goldens are HARVESTED from the ROM (temp test_zzz*.lua probes, deleted before commit; a change needs a DECISIONS entry); debug block append-only (next slot **+76**); dbg_lag==0 asserted everywhere; every phase ends with a cold-clean `make test`, docs updated, commit+push, CI checked.
 
-## Current state (2026-07-13, Phase 3.5: units A-E + Zone 1 F1/F2a done)
+## Current state (2026-07-13, Phase 3.5: Zone 1 COMPLETE incl. the walkthrough)
+
+- **Zone 1 F2b COMPLETE — the route is PROVEN (D-022b), gate 22/22
+  cold-clean**: test_zone1_solve_a (rooms 03-05) + _b (06-09→chamber)
+  pad-drive every crux: room04's pit launch, room05's tower crossing +
+  gap crawl, room06's carry/throw/34px-crate-hop, room07's blind-spot
+  reflect kill (sentry FLIPPED east — D-022b), room08's jump-in fling
+  (lands x≈810, well past its gap) + crate synthesis, room09's gate.
+  Design changes from route-proofing: one crate per corridor room (a
+  spare anywhere = a push-speed wall), room04's east door moved 2
+  metatiles off the pillar (live-portal ping-pong trap), sentry_r
+  blind-spot design. Script laws: hold B ≥30f (variable height cuts
+  pulses), air-brake after walk-offs (no air friction), pin-then-grab
+  (side-agnostic 20px). POS_SET checkpoints ONLY on stair zigzags.
+- **NEXT — F3**: tile-budget audit (≤384 — the sheet is 39 tiles, mostly
+  a documentation pass) + assets/README reuse map; the MILESTONE A build
+  + played-through checklist for Jeremy (his go/no-go — do NOT record
+  his verdict); push + CI; memory refresh.
+
+## Previous state (2026-07-13, Phase 3.5: units A-E + Zone 1 F1/F2a done)
 
 - **Zone 1 F2a COMPLETE — The Gantries authored (D-022), gate 20/20
   cold-clean**: rooms 3-9 teach movement → portals → fling → crates →

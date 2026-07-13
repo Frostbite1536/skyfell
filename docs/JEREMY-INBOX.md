@@ -8,6 +8,41 @@ Cross out / annotate and the next session acts on it.
 
 ## Open
 
+### ★ MILESTONE A — your go/no-go (the build is waiting)
+
+`make run` builds and launches the release ROM. The demo is complete:
+**title → Zone 1's seven rooms → the gravity chamber → end card → title.**
+Every route is machine-proven solvable (22/22 emulator tests, the full
+walkthrough pad-driven); what only you can judge is whether it's FUN.
+The played-through checklist:
+
+1. Title: START drops you into room03. Run right, hop the girders,
+   cross the little pit. (Movement feel — final check.)
+2. Room04: gold (X) flat at the far pillar from the plateau edge, drop
+   in the pit, blue (Y) at your feet on the brass, hop in — you pop out
+   high over the far plateau. **Select-recall before walking to the
+   door** or the pillar portal bounces you back (that's by design —
+   veto it if it reads as a bug in the hands).
+3. Room05: climb the tower stairs, drop east, crawl the gap (fall in,
+   jump out). Optional: the portal fling across — blue on the floor pad,
+   gold high on the tower face (fired up-left from east of the gap).
+4. Room06: grab the crate (A), carry it to the tall wall, throw it (A),
+   hop crate → plateau. (The hop clears by 1.6px — tell me if it ever
+   feels like a miss you "should" have made.)
+5. Room07: over the walkway, drop BEHIND the sentry (it faces away).
+   Watch its shots. Blue on the gold tower face beside you, gold on the
+   pillar it's shooting at (fire down-right from the tower top before
+   dropping, or jump-fire from the shaft). Then GET OUT of the corridor
+   — climb the pillar steps — and watch it die to its own shot.
+6. Room08: everything at once — tower, gap, fling, crate, plateau.
+7. Room09: climb the switchbacks, UP at the gate — the chamber.
+8. The chamber puzzle (you know this one) → THE END CARD → START loops
+   to the title.
+9. Audio: the whole run has music + 6 SFX. Anything that grates, name it.
+
+**Record your verdict here: continue / re-scope / stop.** (ROADMAP's
+Milestone A gate — I will not fill it in for you.)
+
 ### 2. Overnight run 2026-07-11 — standing authorizations I assumed
 You said "work on all the Phases, operate autonomously." I am: building phase by
 phase, gating each on `make test` on a clean build, **committing per unit and pushing
@@ -50,16 +85,25 @@ rather I stop pushing overnight, say so and I'll keep commits local.
   to a second room, and solving the chamber puzzle walks you out through its
   exit recess back to the hall. (The old "pre-place a portal to escape the
   shaft" note is obsolete once you use the doors.)
-- **Zone 1 is IN (new, D-022)** — the demo is now title → seven authored
-  rooms (movement → portals → the big fling → crates → the sentry shaft →
-  synthesis → the gate) → the chamber → end card → title. Your playthrough
-  is the real gate: door graph + loads are machine-verified, and I'm
-  scripting the route solves next, but FEEL (launch heights, gap widths,
-  the crate hop, sentry timing) is yours. Design choices to veto if they
-  read wrong in the hands: rooms 05/08's gaps are one-way eastward valves
-  (you can always door back the long way); room06's plateau needs the
-  crate hop (1.6px of apex margin — the second crate is there if stacking
-  feels better); the end card loops to the title now, not the hall.
+- **Zone 1 is IN and route-proven (D-022/D-022b)** — the demo is title →
+  seven rooms (movement → portals → the fling crossing → crates → the
+  sentry shaft → synthesis → the gate) → the chamber → end card → title,
+  and the ENTIRE route is now pad-driven green in test_zone1_solve_a/b
+  (every crux solved by scripted inputs; POS_SET only on stair climbs).
+  FEEL is yours. Two design calls to veto or bless:
+  - **room07's sentry faces AWAY from you** (blind-spot setup: watch its
+    shots, place both portals safely, then get out of the corridor before
+    its own shot comes home — expect ONE surprising death the first time;
+    respawn is the room entry, 3 seconds away).
+  - **rooms 05/08: the fling lands in/past the crawlable gap** rather
+    than a clean far-shore touchdown — after portal setup you can't
+    re-climb the tower, so the jump-in fling is the available one (it
+    still crosses; room08's carries ~280px). The cinematic full-power
+    tower-drop fling exists in the physics — say the word and I'll add
+    an east-side re-climb path so players can earn it.
+  Also: room04 teaches Select-recall (its exit door was moved off the
+  pillar so a live portal can't ping-pong you back — leftover portals
+  near doors are real gameplay now).
 - **Audio (new, D-020)**: the game now has music + 6 SFX — all synthesized
   (a music-box-and-bass ambient loop, "The Gyre Hums"; jump/fire/portal-open/
   teleport/land/death effects). Your ears are the gate I can't run: `make run`

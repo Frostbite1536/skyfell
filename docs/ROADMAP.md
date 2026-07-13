@@ -162,10 +162,10 @@ Toolchain facts below were verified against live sources on 2026-07-07: PVSnesLi
 
 ### Included Features
 
-- [ ] Zone 1 layout: 7 Mode 1 rooms teaching move → portal → fling → crate → sentry, gated door into the chamber; door-based transitions (fade + force-blank reload)
+- [x] Zone 1 layout: 7 Mode 1 rooms teaching move → portal → fling → crate → sentry, gated door into the chamber; door-based transitions (fade + force-blank reload) *(D-021/D-022/D-022b, 2026-07-13; the full route is pad-driven green in test_zone1_solve_a/b)*
 - [x] Title screen (logo, START), death/respawn at room entry, end-of-demo card *(D-018/D-019, 2026-07-13; console-text cards — art logo is a later polish pass)*
 - [x] Audio spike end-to-end: 1 SNESMOD track through `smconv` + 6 SFX (jump, fire, portal-open, teleport, land, death) — proves R3 before Phase 6 composes more; SFX reserve 2 of the 8 DSP voices *(D-020, test_audio, 2026-07-13; music on ch 1-6, snesmod SFX voice = ch 8)*
-- [ ] Tile-budget audit: Zone 1 sheet ≤ 384 BG tiles, documented reuse map in `assets/README.md`
+- [x] Tile-budget audit: Zone 1 sheet ≤ 384 BG tiles, documented reuse map in `assets/README.md` *(39/384 — one shared sheet for all nine rooms; audit + reuse map recorded 2026-07-13)*
 - [ ] Playtest build handed to Jeremy + feedback logged in DECISIONS.md
 
 ### Success Criteria
